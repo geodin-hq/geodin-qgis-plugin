@@ -592,17 +592,21 @@ class GQgis_Cbo_Layers(QtWidgets.QComboBox, GQgis_Bas_Widget):
                 lyrSource = lyr.source().split('|')[0]
                 lyrSrcPath = Path(lyr.source().split('|')[0])
                 self.log.debug(
-                    "DDXData %s\n\tSourcs  %s\n\t\tIf-Expr (%s and %s and %s)",
+                    "DDXData %s\n\tSourcs  %s\n\t\tIf-Expr (%s and %s and %s and %s)",
                     self._DDXData,
                     lyrSource,
                     str(lyrSrcPath.parents[1].samefile(self._DDXData)),
                     str(lyrSrcPath.parent.stem.startswith(self._GoDBPrefix)),
-                    str(lyrSrcPath.stem.startswith(lyrSrcPath.parent.stem))
+                    str(lyrSrcPath.stem.startswith(lyrSrcPath.parent.stem)),
+                    # 07/2024 j.ebert, Bugfixing: Layer aus verwaisten DatabaseFolder ignorieren
+                    str(app.DDX.hasValidDbRef(str(lyrSrcPath)))
                 )
                 if (
                     lyrSrcPath.parents[1].samefile(self._DDXData) and
                     lyrSrcPath.parent.stem.startswith(self._GoDBPrefix) and
-                    lyrSrcPath.stem.startswith(lyrSrcPath.parent.stem)
+                    lyrSrcPath.stem.startswith(lyrSrcPath.parent.stem) and
+                    # 07/2024 j.ebert, Bugfixing: Layer aus verwaisten DatabaseFolder ignorieren
+                    app.DDX.hasValidDbRef(str(lyrSrcPath))
                 ):
                     lyrNode = self._QgsRoot.findLayer(lyr)
                     lyrLongName = lyrNode.name()

@@ -62,14 +62,6 @@ class GoNodeQuery(GoNode):
             self._DataPath = Path(self.tag().dataSource())
         return self._DataPath
 
-    @property
-    def QSleepTime(self):
-        """timer in millisecond
-
-        02.08.2023 j.ebert
-        """
-        return 100
-
     def iconAlias(
         self,
         mode=0                  # alias index (0-normal|1-open)
@@ -108,9 +100,10 @@ class GoNodeQuery(GoNode):
     def layers(self):
         """returns a QgsVectorLayer/GoLayer list of this GoQuery
 
-        26.03.2024 j.ebert
+        24.07.2024 j.ebert
         """
-        # https://gis.stackexchange.com/questions/211960/selecting-several-layers-programmatically-using-pyqgis
+        # TODO: CleanCode - Klasse/Methode anpassen auf GoNode
+        #                   (GoNode.GoLayerPattern, GoNode.listGoLayers(), GoNode.removeGoLayers())
         lyrs = []
         # validen/potentiellen GeoDin-Object-Layer (QgsVectorLayer, GeoJSON, ...) listen...
         mapLyrs = [lyr for lyr in qgis.core.QgsProject.instance().mapLayers().values() if (
@@ -125,10 +118,20 @@ class GoNodeQuery(GoNode):
                 if self.DataPath.samefile(lyr.source().split('|')[0]):
                     lyrs.append(lyr)
         else:
-            dataSource = str(self.DataPath).lower()
+            # 07/2024 j.ebert, aktualisiert (Pfad immer mit os.altsep für String-Vergleich)
+            #   seealso: GeODinQGIS.vm.bas_node.GoNode.listGoLayers()
+##            dataSource = str(self.DataPath).lower()
+##            for lyr in mapLyrs:
+##                if (lyr.source().split('|')[0].lower() == dataSource):
+##                    lyrs.append(lyr)
+            pattern = str(self.DataPath).lower().replace(os.sep, os.altsep)
             for lyr in mapLyrs:
-                if (lyr.source().split('|')[0].lower() == dataSource):
+                lyrSource = lyr.source().split('|')[0].lower().replace(os.sep, os.altsep)
+                if lyrSource == pattern:
                     lyrs.append(lyr)
+        # Liste der  validen/potentiellen GoLayer löschen, damit
+        # keine unnötigen Referenzen auf Layer (und damit auf deren DataSource) bestehen
+        del mapLyrs
         return lyrs
 
     def loadChildren(self):
@@ -272,16 +275,19 @@ class GoNodeQuery(GoNode):
         self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)
         # Abfrage im GOM selektieren...
         self.onGeODin()
-        # DataSource der Abfrage aktualsieren...
-        dataPath = Path(self.tag().dataSource())
-        lyrs = []
+        # Layer sowie DataSource der Abfrage löschen...
+##        dataPath = Path(self.tag().dataSource())
+##        lyrs = []
+##        try:
+##            # Layer löschen...
+##            lyrs = self.layers()
+##            if lyrs:
+##                qgis.core.QgsProject.instance().removeMapLayers([lyr.id() for lyr in lyrs])
+##                QtWidgets.QApplication.processEvents()
+##                plugin().iface().mapCanvas().refresh()
         try:
             # Layer löschen...
-            lyrs = self.layers()
-            if lyrs:
-                qgis.core.QgsProject.instance().removeMapLayers([lyr.id() for lyr in lyrs])
-                QtWidgets.QApplication.processEvents()
-                plugin().iface().mapCanvas().refresh()
+            self.removeLayers(refresh=True)
             # DataSource löschen...
             if self.DataPath.exists():
                 QtCore.QTimer.singleShot(self.QSleepTime, self._remove)
@@ -400,39 +406,27 @@ class GoNodeQuery(GoNode):
         idx = self._GxSettings.get(self.tag().Kind, self._GxSettings['Default'])[0]
         return idx
 
-    def validGoLayer(
+    def removeLayers(
         self,
-        qgsLayer
-    ):
-        """True if 'qgsLayer' can be a GoLayer (QgsVectorLayer, GeoJSON, ...)
-
-        26.03.2024 j.ebert
-        """
-        self.log.log(gqc._LOG_TRACE, "")
-        val = False
-        if (
-            isinstance(qgsLayer, qgis.core.QgsVectorLayer) and
-            (qgsLayer.dataProvider().storageType() == 'GeoJSON')
+        refresh=False           # refresh mapCanvas (False|True)
         ):
-            try:
-                statinfo = os.stat(qgsLayer.source().split('|')[0])
-                # -> Die WindowsPath-Syntax ist richitg und die Layer Source existiert
-                # -> Der QgsVectorLayer kann ein GoLayer sein.
-                val = True
-            except FileNotFoundError:
-                # FileNotFoundError: [WinError 3] Das System kann den angegebenen Pfad nicht finden:
-                # -> Die WindowsPath-Syntax ist richitg, aber die Layer Source existiert nicht
-                # -> Der QgsVectorLayer kann ein GoLayer sein.
-                val = True
-            except:
-                # OSError: [WinError 123] Die Syntax für den Dateinamen, Verzeichnisnamen oder die Datenträgerbezeichnung ist falsch:
-                # -> Die WindowsPath-Syntax ist falsch!
-                # -> Der QgsVectorLayer kann kein GoLayer sein.
-                self.log.warning(
-                    "Ignore layer \"%s\"\n\t%s", str(qgsLayer), qgsLayer.source(),
-                    exc_info=True
-                )
-        return val
+        """ deletes query layers from QGIS project
+
+        return:
+            True    if query layers were found/deleted in QGIS project
+            False   if query layers were not found/deleted in QGIS project
+
+        24.07.2024 j.ebert
+        """
+        lyrs = self.layers()
+        if lyrs:
+            qgis.core.QgsProject.instance().removeMapLayers([lyr.id() for lyr in lyrs])
+            if refresh:
+                # wenn Refresh-Option über Argumnet explicit gesetzt ist
+                # dann Refresh mapCanvas
+                QtWidgets.QApplication.processEvents()
+                plugin().iface().mapCanvas().refresh()
+        return bool(lyrs)
 
     def _remove(self):
         # DataSource löschen...

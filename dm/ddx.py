@@ -331,6 +331,31 @@ class GxDDX:
                         )
         return exc, qry
 
+    def hasValidDbRef(
+        self,
+        dataSource              # GoQuery data source (str)
+    ):
+        """True if Path 'dataSource' has a valid GoDatabase folder and also reference
+
+        25.07.2024 j.ebert
+        """
+        val = False
+        try:
+            srcPath = dataSource if isinstance(dataSource, Path) else Path(dataSource)
+            val = (
+                # DataSource muss im DDX-Data-Folder gespeichert sein
+                #   <DDX data folder>\<GoDatabase folder name>\<File der DataSource>
+                srcPath.parents[1].samefile(self.Data) and
+                # GoDatabase-Foldername muss mit GoDatabase-Prefix beginnen
+                srcPath.parent.stem.startswith(GxDB._Prefix) and
+                # GoDatabase-Foldername muss der Descriptor einer GoDatabase im DDX sein
+                # (Damit werden verwaiste GoDatabase-Folder ignoriert.)
+                (srcPath.parent.stem in [item._Desc for item in self.Databases if item.isPresent])
+            )
+        except:
+            self.log.critical("Valid DbRef from '%s' faild", str(dataSource), exc_info=True)
+        return val
+
     def delete(
         self,
         filename=""

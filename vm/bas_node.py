@@ -8,8 +8,10 @@ globals:
 01.06.2023 j.ebert
 """
 import logging
+import os
 import traceback
 
+import qgis.core
 from qgis.PyQt import (
     QtCore,
     QtGui,
@@ -122,6 +124,17 @@ class GoNode(QtWidgets.QTreeWidgetItem):
                 self._PrjID = self.parent().PrjID
         return self._PrjID
 
+    @property
+    def GoLayerPattern(self):
+        """Pattern (str) of GoLayer DataSource
+
+        24.07.2024 j.ebert
+        """
+        raise NotImplementedError(
+            "Property '%s.GoLayerPattern' not implemented" % self.__class__.__name__
+        )
+        return None
+
     @classmethod
     def QIcon(
         cls,
@@ -139,6 +152,18 @@ class GoNode(QtWidgets.QTreeWidgetItem):
         if disabled:
             icon = QtGui.QIcon(icon.pixmap(QtCore.QSize(32, 32), QtGui.QIcon.Disabled))
         return icon
+
+    @property
+    def QSleepTime(self):
+        """timer in millisecond
+
+        24.07.2024 j.ebert (bisher nur GoNodeQuery.QSleepTime)
+        """
+        # 07/2024 j.ebert, Anmerkung
+        #   Property QSleepTime bisher nur in der abgeleiteten Klasse GoNodeQuery, aber
+        #   für Methode removeLayers() ist die Property QSleepTime jetzt in allen GoNode-Klassen
+        #   notwendig. Daher verschoben in die Basis-Klasse GoNode.
+        return 100
 
     def tag(self):
         """returns data or DataModel object (GoBaseClass) from this GoNode
@@ -358,6 +383,122 @@ class GoNode(QtWidgets.QTreeWidgetItem):
             )
         self.setIcon(0, GoNode.QIcon(self.iconAlias(mode), disabled))
         return
+
+    def listGoLayers(self):
+        """returns a QgsVectorLayer/GoLayer list of this GoNode or all its ChildNodes
+
+        24.07.2024 j.ebert
+        """
+        self.log.log(gqc._LOG_TRACE,"")
+        # https://gis.stackexchange.com/questions/211960/selecting-several-layers-programmatically-using-pyqgis
+        lyrs = None
+        self.log.log(gqc._LOG_TRACE, self.GoLayerPattern)
+        if self.GoLayerPattern:
+            # Wenn für diesen GoNode das Attr. GoLayerPattern gesetzt ist,
+            # dann GeoDin-Object-Layer listen...
+            # - validen/potentiellen GoLayer (QgsVectorLayer, GeoJSON, ...) listen...
+            self.log.log(gqc._LOG_TRACE,"")
+            mapLyrs = [lyr for lyr in qgis.core.QgsProject.instance().mapLayers().values() if (
+                self.validGoLayer(lyr)
+            )]
+            self.log.debug("\n\t".join(
+                [lyr.source().split('|')[0].lower() for lyr in mapLyrs]
+            ))
+            # - Liste der validen/potentiellen GoLayer prüfen...
+            #   07/2024 j.ebert, Anmerkung
+            #       Prüfen, ob DataSource dem GoLayerPattern entspricht, funktioniert hier
+            #       nur über den String-Vergleich (und nicht mit Path.samefile()).
+            #       - GoNodeQuery       - Pattern ist das GeoJSON-File
+            #         GoNodeProject     - Pattern enthält nicht den vollständigen GeoJSON-Filenamen
+            #         GoNodeDatabase    - Pattern ist das Directory vom GeoJSON-File
+            #       - Path(<filename>).samefile() verursacht einen FileNotFoundError, wenn
+            #         das Fiel <filename> nicht eixtiert, also bie not Path(<filename>).exists()
+            #   07/2024 j.ebert, QGIS 3.22.9-Białowieża
+            #       QgsMapLayer.source()    - undefiniert mit os.sep oder mit os.altsep :(
+            #                                 (ggf. abhängig davon, ob der Layer beim Öffnen des
+            #                                  QGIS-Projektes in diesem bereits existiert hat???)
+            #       ... aber damit funktioniert der String-Vergleich nicht, ohne weiteres
+##            pattern = str(self.GoLayerPattern).lower()
+##            lyrs = [lyr for lyr in mapLyrs if (
+##                lyr.source().split('|')[0].lower().startswith(pattern)
+##            )]
+            pattern = str(self.GoLayerPattern).lower().replace(os.sep, os.altsep)
+            lyrs = []
+            for lyr in mapLyrs:
+                lyrSource = lyr.source().split('|')[0].lower().replace(os.sep, os.altsep)
+                if lyrSource.startswith(pattern):
+                    lyrs.append(lyr)
+            # Liste der  validen/potentiellen GoLayer löschen, damit
+            # keine unnötigen Referenzen auf Layer (und damit auf deren DataSource) bestehen
+            del mapLyrs
+            self.log.debug("\n\t".join(
+                [lyr.source().split('|')[0].lower() for lyr in lyrs]
+            ))
+        self.log.log(gqc._LOG_TRACE,"Done")
+        return lyrs
+
+    def removeGoLayers(
+        self,
+        refresh=False           # refresh mapCanvas (False|True)
+        ):
+        """deletes all QgsVectorLayer/GoLayer of this GoNode or all its ChildNodes
+
+        return:
+            True    if layers were found/deleted in QGIS project
+            False   if layers were not found/deleted in QGIS project
+
+        24.07.2024 j.ebert
+        """
+        self.log.log(gqc._LOG_TRACE,"")
+        lyrs = self.listGoLayers()
+        lyrsFound = bool(lyrs)
+        if lyrsFound:
+            qgis.core.QgsProject.instance().removeMapLayers([lyr.id() for lyr in lyrs])
+            if refresh:
+                # wenn Refresh-Option über Argumnet explicit gesetzt ist
+                # dann Refresh mapCanvas
+                QtWidgets.QApplication.processEvents()
+                plugin().iface().mapCanvas().refresh()
+        del lyrs
+        return lyrsFound
+
+    def validGoLayer(
+        self,
+        qgsLayer
+    ):
+        """True if 'qgsLayer' can be a GoLayer (QgsVectorLayer, GeoJSON, ...)
+
+        24.07.2024 j.ebert
+        """
+        # 07/2024 j.ebert, Anmerkung
+        #   Die Methode validGoLayer() bisher nur in der abgeleiteten Klasse GoNodeQuery, aber
+        #   für Methode removeGoLayers() ist die Methode validGoLayer() jetzt in allen
+        #   GoNode-Klassen notwendig. Daher verschoben in die Basis-Klasse GoNode.
+        self.log.log(gqc._LOG_TRACE, "")
+        val = False
+        if (
+            isinstance(qgsLayer, qgis.core.QgsVectorLayer) and
+            (qgsLayer.dataProvider().storageType() == 'GeoJSON')
+        ):
+            try:
+                statinfo = os.stat(qgsLayer.source().split('|')[0])
+                # -> Die WindowsPath-Syntax ist richitg und die Layer Source existiert
+                # -> Der QgsVectorLayer kann ein GoLayer sein.
+                val = True
+            except FileNotFoundError:
+                # FileNotFoundError: [WinError 3] Das System kann den angegebenen Pfad nicht finden:
+                # -> Die WindowsPath-Syntax ist richitg, aber die Layer Source existiert nicht
+                # -> Der QgsVectorLayer kann ein GoLayer sein.
+                val = True
+            except:
+                # OSError: [WinError 123] Die Syntax für den Dateinamen, Verzeichnisnamen oder die Datenträgerbezeichnung ist falsch:
+                # -> Die WindowsPath-Syntax ist falsch!
+                # -> Der QgsVectorLayer kann kein GoLayer sein.
+                self.log.warning(
+                    "Ignore layer \"%s\"\n\t%s", str(qgsLayer), qgsLayer.source(),
+                    exc_info=True
+                )
+        return val
 
     def _addDummyChild(self):
         """ adds a DummyChild if configured

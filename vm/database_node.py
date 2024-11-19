@@ -6,7 +6,9 @@ Classes:
 """
 import json
 import logging
+import os
 from qgis.PyQt import (
+    QtCore,
     QtWidgets
 )
 
@@ -43,6 +45,17 @@ class GoNodeDatabase(bas.GoNode):
         self.setText(self.textColumn(), self._gDB.Name)
         self.orderText()
         self._presentQrys = []
+
+    @property
+    def GoLayerPattern(self):
+        """Pattern (str) of GoLayer DataSource
+
+        24.07.2024 j.ebert
+        """
+        val = str(self._gDB.DataPath).lower()
+        if val[-1] != '\\':
+            val = os.path.join(val,"").lower()
+        return val
 
     @property
     def GOMGroup(self):
@@ -225,16 +238,22 @@ class GoNodeDatabase(bas.GoNode):
     def onRemove(self):
         """removes Database/QTreeWidgetItem
 
-        31.05.2023 j.ebert
+        24.07.2024 j.ebert
         """
         self.log.log(gqc._LOG_TRACE,"")
         try:
+            # Alle Layer der GeODin-Database im QGIS-Projekt löschen, sonst
+            # verursacht das Löschen der DataSources/der GeoJSON-Files eine Exception
+            self.removeGoLayers(refresh=True)
             # Database (aus DDX) entfernen...
-            self._gDB.remove()
+            # (Sleep zur Sychronisation, damit Löschen der DataSources keine Exception verursacht)
+            QtCore.QTimer.singleShot(self.QSleepTime, self._gDB.remove)
             self.parent().removeChild(self)
         except gqb.GxException as exc:
+            self.log.error("Unknown error on remove database", exc_info=True)
             MsgBox.error(plugin().parent(), self.translate("Remove Database"), exc.msg())
         except Exception:
+            self.log.critical("Unknown error on remove database", exc_info=True)
             MsgBox.error(
                 plugin().parent(),
                 self.translate("Remove Database"),

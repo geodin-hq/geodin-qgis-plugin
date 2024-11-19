@@ -747,16 +747,26 @@ class GoDatabase(bas.GoBaseClass):
         """
         self.log.log(gqc._LOG_TRACE,"")
         try:
-            # GoDatabase-Folder im DDX-Folder löschen...
-            if self.DataPath.exists():
-                # Achtung,
-                #   Die Funktion shutil.rmtree() löscht den Ordner samt
-                #   allen darin enthalten Dateien und Ordnern!!!
-                shutil.rmtree(self.DataPath)
             # GoDatabase aus DDX löschen
             self._DDX.update(self.dumpFilename())
             # GoDatabase Objekt zurücksetzen
             self._isPresent = False
+            # GoDatabase-Folder im DDX-Folder löschen...
+            if self.DataPath.exists():
+                # 07/2024 j.ebert, Anmerkung
+                #   Löschen des GoDatabase-Folder kann ggf. eine Exception auslösen, wenn
+                #   GeoJSON-Files noch "in anderen Prozessen" verwendet werden.
+                try:
+                    # Achtung,
+                    #   Die Funktion shutil.rmtree() löscht den Ordner samt
+                    #   allen darin enthalten Dateien und Ordnern!!!
+                    shutil.rmtree(self.DataPath)
+                except:
+                    self.log.error(
+                    "GoDatabase-Folder '%s' is orphaned but could not be removed\n\t%s",
+                    self.dumpFilename(), str(self.DataPath),
+                    exc_info=True
+                    )
         except:
             self.log.critical(
             "GoDatabase '%s' could not be completely removed\n\t%s\n\t%s",
