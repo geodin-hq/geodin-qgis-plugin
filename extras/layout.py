@@ -212,7 +212,7 @@ class DisplayLayout(QDialog):
 			
 			# write layout folder to config file
 			while self.main.config.has_option('Layouts','L' + str(i)):
-				i  =1
+				i += 1
 			self.main.config.set('Layouts', 'L'+str(i), directory)
 			self.main.saveConfig()
 			

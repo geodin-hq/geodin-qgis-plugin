@@ -2032,20 +2032,20 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			elif len(line) and '=' in line:
 				inidict[section][line[0:line.index('=')]] = line[line.index('=')+1:]
 
-		print ('set to true')
+		# print ('set to true')
 		if 'database' in list(inidict.keys()):
-			print ('set to true 0')
-			print (*list(inidict.keys()))
-			print (*list(inidict['database'].keys()))
-			print (*list(inidict['system'].keys()))
-			print (*list(inidict['layoutfolders'].keys()))
-			print (*list(inidict['help'].keys()))
+			# print ('set to true 0')
+			# print (*list(inidict.keys()))
+			# print (*list(inidict['database'].keys()))
+			# print (*list(inidict['system'].keys()))
+			# print (*list(inidict['layoutfolders'].keys()))
+			# print (*list(inidict['help'].keys()))
 			for opt in list(inidict['database'].keys()):
-				print ('set to true 1')
+				# print ('set to true 1')
 				if opt.lower() == 'useradodatabases':
-					print ('set to true 2')
+					# print ('set to true 2')
 					if inidict['database'][opt].lower() == 'true':
-						print ('set to true 3')
+						# print ('set to true 3')
 						self.UserADODataBases = True
 					break
 					
