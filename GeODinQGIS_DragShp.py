@@ -1,9 +1,8 @@
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from qgis.core import *
-from qgis.gui import *
-from pythonmodules.pypyodbc import *
-from ui_Files.ui_GeODinQGIS_DragShp import Ui_DragShape
+from qgis.PyQt.QtCore import *
+from qgis.PyQt.QtGui import *
+from qgis.PyQt.QtWidgets import *
+from .pythonmodules.pypyodbc import *
+from .ui_Files.ui_GeODinQGIS_DragShp import Ui_DragShape
 
 class DragShp(QDialog, Ui_DragShape):
 

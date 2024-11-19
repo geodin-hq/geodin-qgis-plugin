@@ -1,76 +1,92 @@
 # -*- coding: utf-8 -*-
 """
 /***************************************************************************
- GeODinQGIS
-                                 A QGIS plugin
- This plugin connects GeODin with QGIS
-                              -------------------
-        begin                : 2015-02-16
-        git sha              : $Format:%H$
-        copyright            : (C) 2015 by Fugro Consult GmbH
-        email                : www.fugro.de
- ***************************************************************************/
+GeODinQGIS
+							 A QGIS plugin
+This plugin connects GeODin with QGIS
+						  -------------------
+	begin                : 2015-02-16
+	git sha              : $Format:%H$
+	copyright            : (C) 2021 by Fugro Germany Land GmbH
+	email                : www.fugro.com
+***************************************************************************/
 
 /***************************************************************************
- *                                                                         *
- *   This program is free software; you can redistribute it and/or modify  *
- *   it under the terms of the GNU General Public License as published by  *
- *   the Free Software Foundation; either version 2 of the License, or     *
- *   (at your option) any later version.                                   *
- *                                                                         *
- ***************************************************************************/
+*                                                                         *
+*   This program is free software; you can redistribute it and/or modify  *
+*   it under the terms of the GNU General Public License as published by  *
+*   the Free Software Foundation; either version 2 of the License, or     *
+*   (at your option) any later version.                                   *
+*                                                                         *
+***************************************************************************/
 """
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from qgis.core import *
+from __future__ import print_function
+from __future__ import absolute_import
+from future import standard_library
+standard_library.install_aliases()
+from builtins import str
+from builtins import range
+from qgis.PyQt.QtCore import QObject, Qt, QUrl
+from qgis.PyQt.QtWidgets import QDockWidget, QAbstractItemView, QTreeWidgetItem, QMessageBox, QFileDialog, QApplication, QMenu
+from qgis.PyQt.QtGui import QIcon, QFont, QCursor
+from qgis.core import QgsVectorLayer, QgsProject
 import codecs
-from ui_Files.ui_GeODinQGIS_Main import Ui_GeODinQGISMain
+from .ui_Files.ui_GeODinQGIS_Main import Ui_GeODinQGISMain
 
 import os, sys, struct, time, logging, datetime, locale, ctypes, binascii, win32com.client, qgis.utils
 try:
 	import pyodbc
 except:
-	from pythonmodules import pypyodbc
-	print "Main: Can not import pyodbc maybe it is needed."
+	# from .pythonmodules import pypyodbc
+	# fix_print_with_import
+	print("Main: Can not import pyodbc maybe it is needed.")
 try:
 	import psycopg2
 except:
-	print "Main: Can not import psycopg2 maybe it is needed."
+	# fix_print_with_import
+	print("Main: Can not import psycopg2 maybe it is needed.")
 
-from pythonmodules import _mysql
-from pythonmodules.helpFunction import *
-from _winreg import *
+from .pythonmodules import _mysql
+from qgis.PyQt.QtSql import QSqlDatabase, QSqlQuery
 
-from GeODinQGIS_NewObject import NewObject
-from GeODinQGIS_Shape import *
-from GeODinQGIS_DragShp import DragShp
-from GeODinQGIS_Settings import Settings
+from .pythonmodules.helpFunction import DATABASEITEM, PROJECTITEM, OBJECTTYPEITEM, OBJECTITEM, DOCUMENTITEM, CHILDITEM, QUERYITEM, DBQUERYITEM, Dict, DatabaseObjects, Database, Project, Object, Query, ObjectType, TreeWidgetItem, UserChooser, Login, QueryDialog, ParameterizedQueryDialog, Info, ConfigParser, searchItem, locreg
+from winreg import OpenKey, HKEY_CURRENT_USER, KEY_READ, QueryValueEx, CloseKey, EnumKey
+
+from .GeODinQGIS_NewObject import NewObject
+from .GeODinQGIS_Shape import ShapeFromPoint
+from .GeODinQGIS_DragShp import DragShp
+from .GeODinQGIS_Settings import Settings
 
 try:
-	from extras.layout import *
-	from extras.opengeodin import *
-except Exception,e:
-	print str(e)
+	from .extras.layout import DisplayLayout, ImageLayout
+	from .extras.opengeodin import GeODinFromObject
+except Exception as e:
+	# fix_print_with_import
+	print(str(e))
 
+## GeODinQGISMain is the main class
+#
+#  More details.
 class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 
+	## The constructor: setup UI, read/write configuration file, set button icons and functions
 	def __init__(self, iface):
-		# setup UI and connect the buttons
 		QDockWidget.__init__(self)
 		self.iface = iface
 		self.setupUi(self)
 		
-		self.qgisVersion = qgis.utils.QGis.QGIS_VERSION
+		self.qgisVersion = qgis.utils.Qgis.QGIS_VERSION
 	
 		# local path for plugin
-		self.pluginDirectory = os.path.dirname(__file__)
+		self.pluginDirectory = os.path.dirname(__file__).replace('\\', '/')
+
 		if "Users" in self.pluginDirectory:
 			self.userPluginDirectory = self.pluginDirectory
 		else:
-			self.userPluginDirectory = 'C:/Users/'+os.environ.get( "USERNAME" )+'/.qgis2/python/plugins/GeODinQGIS'
+			self.userPluginDirectory = os.path.join('C:/','Users', os.environ.get( "USERNAME" ), '.qgis2','python','plugins','GeODinQGIS')
 			
 		# path of tmp folder in home directory
-		self.tmpDirectory = self.userPluginDirectory+'/tmp'
+		self.tmpDirectory = os.path.join(self.userPluginDirectory, 'tmp')
 		self.GeODin = None
 		
 		# path of log folder in home directory
@@ -108,9 +124,9 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		self.ownQueryIcon = QIcon(":/plugins/GeODinQGIS/icons/i_0815F.png")
 		
 		# set button signals
-		QObject.connect(self.singleImportButton, SIGNAL("clicked()"), self.loadMultipleDatabases)
-		QObject.connect(self.multipleImportButton, SIGNAL("clicked()"), self.loadSingleDatabase)
-		QObject.connect(self.iface, SIGNAL("currentLayerChanged(QgsMapLayer *)"), self.layerActivationChanged)
+		self.singleImportButton.clicked.connect(self.loadMultipleDatabases)
+		self.multipleImportButton.clicked.connect(self.loadSingleDatabase)
+		self.iface.currentLayerChanged.connect(self.layerActivationChanged)
 		
 		# tool tips
 		self.singleImportButton.setToolTip('Import Databases')
@@ -119,10 +135,10 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		self.multipleImportButton.setFont(QFont('OldEnglish', 10))
 
 		# set treeWidget signals
-		self.connect(self.treeWidget, SIGNAL("itemExpanded(QTreeWidgetItem*)"), self.expanded)
-		self.connect(self.treeWidget, SIGNAL("itemCollapsed(QTreeWidgetItem*)"), self.collapsed)
+		self.treeWidget.itemExpanded.connect(self.expanded)
+		self.treeWidget.itemCollapsed.connect(self.collapsed)
 		#self.connect(self.treeWidget, SIGNAL("itemDoubleClicked(QTreeWidgetItem*, int)"), self.buildTree)
-		self.connect(self.treeWidget, SIGNAL("itemSelectionChanged ()"), self.activateItem)
+		self.treeWidget.itemSelectionChanged .connect(self.activateItem)
 		self.treeWidget.setContextMenuPolicy(Qt.CustomContextMenu)
 		self.treeWidget.customContextMenuRequested.connect(self.treeMenu)
 		self.treeWidget.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -136,6 +152,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		# use language of operating system, if possible
 		# if not use english as default
 		osLanguage = locale.windows_locale[ctypes.windll.kernel32.GetUserDefaultUILanguage()].split('_')[0]
+
 		if osLanguage in self.dictionary.getLanguages():
 			self.lang = osLanguage
 		else:
@@ -154,7 +171,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 					try:
 						if not os.path.isdir(self.userPluginDirectory):
 							os.makedirs(self.userPluginDirectory)
-					except Exception,e:
+					except Exception as e:
 						QMessageBox.information(None,self.dictionary.getWord(self.lang,"Error"),str(e))
 						self.error = 1
 						return
@@ -198,6 +215,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			
 		# if config file not available, create it
 		# set sections and default settings in config file
+
 		if not os.path.isfile(self.configFile):
 			self.config.add_section('Databases')
 			self.config.add_section('Options')
@@ -211,7 +229,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			self.config.add_section('Layouts')
 			self.saveConfig()
 			self.changeLang(self.lang)
-	
+
 		self.config.read(self.configFile)
 #		self.config.readfp(codecs.open(self.configFile, "r", "utf-8"))
 		
@@ -234,7 +252,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				options = {}
 				options["uname"] = ""
 				options["upassword"] = ""
-				options["connection"] = "ODBC"
+				options["connection"] = "MSACC"
 				database = Database(alias, fn)
 				database.options = options
 				self.newTopLevelItem(database)
@@ -265,32 +283,50 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		self.deny = 0
 
 		self.inProcess = False
-		
+	
+	## enters registry and get GeODin build number
 	def getBuild(self):
-		# enter registry and get GeODin build number
 		key = OpenKey(HKEY_CURRENT_USER, r"Software\GeODin-System\System", 0, KEY_READ)
 		build, dummy = QueryValueEx(key, 'Build')
 		CloseKey(key)	
 		self.lgr.info('GeODin build Number: {0}'.format(build))
 
+	## checks Python version, complying with the QGIS version
+	#
+	# version must be 32-bit
 	def checkVersion(self):
-		# check Python version, complying with the QGIS version
-		# version must be 32-bit
-
 		if struct.calcsize("P") * 8 != 32:
 			self.lgr.info("QGIS Python version: 64 Bit")
-			QMessageBox.warning(self, "Warning", "Only for 32 bit python. Databases can not be opened.")
+			#QMessageBox.warning(self, "Warning", "Only for 32 bit python. Databases can not be opened.")
 		else:
 			self.lgr.info("QGIS Python version: 32 Bit")	
 
+	## set default config array to check
 	def configChecker(self):
-		# set default config array to check
-		configArray = {"Databases":{}, "Options":{"lang":self.lang, "project":'tmp.qgs', "geodinrootdir":self.getGeodinPath(), "programdata":self.getProgramData(), "suppressattribute":"False", "savelayer":"True", "tmpdirectory":self.tmpDirectory}, "Layouts":{}}
+		gdir = ''
+		tdir = ''
+		try:
+			gdir = self.config.get('Options', 'geodinrootdir')
+		except:
+			pass
+			
+		try:
+			tdir = self.config.get('Options', 'tmpdirectory')
+		except:
+			pass
+		
+		if not os.path.isdir(gdir):
+			gdir = self.getGeodinPath()
+			
+		if not os.path.isdir(tdir):
+			tdir = self.tmpDirectory
+		
+		configArray = {"Databases":{}, "Options":{"lang":self.lang, "project":'tmp.qgs', "geodinrootdir":gdir, "programdata":self.getProgramData(), "suppressattribute":"False", "savelayer":"True", "tmpdirectory":tdir}, "Layouts":{}}
 		# map over config array
 		# check config consistency and restore if necessary
-		for f in configArray.keys():
+		for f in list(configArray.keys()):
 			if f in self.config.sections():
-				for i in configArray[f].keys():
+				for i in list(configArray[f].keys()):
 					if i not in self.config.options(f):
 						self.config.set(f, i, configArray[f][i])
 						
@@ -302,15 +338,14 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		self.config.set("Options", "geodinrootdir", configArray["Options"]["geodinrootdir"])
 
 		self.saveConfig()
-		
+	
+	## access key from Windows Registry
+	# open main database folder
 	def loadMultipleDatabases(self):
 		self.readGeodinini()
-		# access key from Windows Registry
-		# open main database folder
 		key = None
 		try:
 			key = OpenKey(HKEY_CURRENT_USER, r"Software\GeODin-System\Database", 0, KEY_READ)
-#			raise WindowsError
 		except WindowsError as e:
 			self.lgr.info('{0}: {1}'.format(e, r"Computer\HKEY_CURRENT_USER\Software\GeODin-System\System"))
 			QMessageBox.information(None,self.dictionary.getWord(self.lang,"Connection Error"),self.dictionary.getWord(self.lang,"No GeODin database connections found."))
@@ -328,6 +363,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				break
 			try:
 				asubkey = OpenKey(key,asubkey_name)				# open subkeys (database folders)
+
 				try:
 					if len(QueryValueEx(asubkey, "ADOConnection")[0]):
 						options, path = self.getConnectionOptions(QueryValueEx(asubkey, "ADOConnection")[0], "ADOConnection", asubkey_name)
@@ -337,9 +373,9 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 					self.lgr.error(asubkey_name+": "+str(e))
 				except IndexError as e:
 					pass
-				except Exception,e:
+				except Exception as e:
 					self.lgr.error(e)
-					pass
+
 				try:
 					if not options:
 						options, path = self.getConnectionOptions(QueryValueEx(asubkey, "FireDACConnection")[0], "FireDACConnection", asubkey_name)
@@ -349,13 +385,14 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 					self.lgr.error(e)
 				except KeyError as e:
 					self.lgr.error(e)
-				except Exception,e:
+				except Exception as e:
 					self.lgr.error(e)
-					pass
+
 
 				database.name = asubkey_name
+				print ('system becomes UserADODataBases')
 				database.system = self.UserADODataBases
-				database.filepath = path.replace("\\","/")
+				database.filepath = path
 				database.options = options
 
 				if path not in [db.filepath for db in self.dbs]:
@@ -383,21 +420,27 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			except AttributeError as e:
 				self.lgr.error(e)
 				pass
-			except Exception,e:
+			except Exception as e:
 				self.lgr.error(e)
 				pass
 			i+=1
 		if key:
 			CloseKey(key)
 
+	## transforms the option string from registry to dictionary
+	#
+	#  returns a options dictionary and a file path to the database
+	#
+	#  @param connectionString GeODin connection string
+	#  @param key defines if it is a ADOConnection or a FireDACConnection
+	#  @param name connection name
 	def getConnectionOptions(self, connectionString, key, name):
-		#transforms the option string from registry to dictionary
-		#returns a options dictionary and a file path to the database
 		options = {}
 		options["ip"] = "127.0.0.1"
 		options["uname"] = ""
 		options["upassword"] = ""
 		path = ""
+		
 		for option in connectionString.split(';'):
 			try:
 				options[option.split('=')[0]]=option.split('=')[1]
@@ -406,12 +449,12 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				pass
 				
 		if key.lower() == "adoconnection":
-			if "Provider" in options.keys():
+			if "Provider" in list(options.keys()):
 				options["connection"] = options.pop("Provider")
 				if "sqloledb.1" in options["connection"].lower():
 					options["connection"] = "MSQL"
 				elif "oledb" in options["connection"].lower():
-					options["connection"] = "ODBC"
+					options["connection"] = "MSACC"
 				elif "msdaora.1" in options["connection"].lower():
 					options["connection"] = "Oracle"
 				elif "sqlserver" in options["connection"].lower():
@@ -421,26 +464,26 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			if "Data Source" in options.keys():
 				if options["connection"].lower() == "msql":
 					options["ip"] = options.pop("Data Source")
-				elif options["connection"].lower() == "odbc" or options["connection"].lower() == "sqlce":
+				elif options["connection"].lower() == "msacc" or options["connection"].lower() == "sqlce":
 					path = options["Data Source"]
 				elif options["connection"].lower() == "oracle":
 					options["ip"] = options["Data Source"].split('/')[0]
 					options["database"] = options["Data Source"].split('/')[1]
 				elif options["connection"].lower() == "dsnconnection":
 					options["DSN"] = options.pop("Data Source")
-			if "Initial Catalog" in options.keys():
+			if "Initial Catalog" in list(options.keys()):
 				options["database"] = options.pop("Initial Catalog")
-			if "User ID" in options.keys():
+			if "User ID" in list(options.keys()):
 				options["uname"] = options.pop("User ID")
-			if "Password" in options.keys():
+			if "Password" in list(options.keys()):
 				options["upassword"] = options.pop("Password")
 
 		elif key.lower() == "firedacconnection":
 			
-			if "DriverID" in options.keys():
+			if "DriverID" in list(options.keys()):
 				options["connection"] = options.pop("DriverID")
 				if "msacc" in options["connection"].lower():
-					options["connection"] = "ODBC"
+					options["connection"] = "MSACC"
 					path = options["Database"]
 					del options["Database"]
 				elif "mssql" in options["connection"].lower():
@@ -449,8 +492,8 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				elif "ora" in options["connection"].lower():
 					options["connection"] = "Oracle"
 					if len(options["Database"].split('/')) == 2:
-						options["ip"] = options["Database"].split('/')[0]
-						options["database"] = options["Database"].split('/')[1]
+						options["ip"] = options["Database"].split('/')[0].strip()
+						options["database"] = options["Database"].split('/')[1].strip()
 					elif len(options["Database"].split('/')) == 1:
 						options["database"] = options["Database"].split('/')[0]
 					del options["Database"]
@@ -460,52 +503,55 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				elif "pg" in options["connection"].lower():
 					options["connection"] = "PostgreSQL"
 					options["database"] = options.pop("Database")
-			if "Server" in options.keys():
+			if "Server" in list(options.keys()):
 				options["ip"] = options.pop("Server")
-			if "User_Name" in options.keys():
+			if "User_Name" in list(options.keys()):
 				options["uname"] = options.pop("User_Name")
-			if "Password" in options.keys():
+			if "Password" in list(options.keys()):
 				options["upassword"] = options.pop("Password")
 
-		if not len(path) and "database" in options.keys():
+		if not len(path) and "database" in list(options.keys()):
 			#if it is no local database, create a pseudo path
 			path = options["ip"]+'/'+name
 		else:
 			del options["ip"]
+	
 		return options, path.replace('\\','/')
-		
+	
+	## write settings to config file to save them 
 	def saveConfig(self):
-		# write settings to config file to save them
+		print ('option 2')
 		with codecs.open(self.configFile, 'wb', encoding='utf-8') as configfile:
 			self.config.write(configfile)
-#			self.config.write(codecs.open(self.configFile,'wb+','utf-8'))
-		
+
+	## load a local access database
+	#
+	#  @param database predefined database object
 	def loadSingleDatabase(self, database=None):
-		#load a local access database
 		try:
-			fileName = QFileDialog.getOpenFileName(None, self.dictionary.getWord(self.lang,"Open database"), "C:/", "Microsoft Access(*.accdb;*.mdb)")
+			fileName, __ = QFileDialog.getOpenFileName(None, self.dictionary.getWord(self.lang,"Open database"), "C:/", "Microsoft Access(*.accdb;*.mdb)")
 			if fileName and fileName not in [db.filepath for db in self.dbs]:
-				if database == None:
+				#the database parameter is handled as bool when not given as a specific value therefore isinstance to prevent it from beeing passed as bool
+				if isinstance(database, bool) or database == None:
 					database = Database(fileName.split('/')[-1][:-4])
 					options = {}
 					options["uname"] = ""
 					options["upassword"] = ""
-					options["connection"] = "ODBC"
+					options["connection"] = "MSACC"
 					database.options = options
-				
 				self.config.set('Databases', database.name, fileName)
 				self.saveConfig()
 				database.filepath = fileName.replace("\\","/")
 				self.newTopLevelItem(database)
 				return 1
-		except Exception,e:
+		except Exception as e:
 			self.lgr.error(e)
 			return 0
 		return 0
-			
+
+	## get the GeODin installation path from registry
+	#  return path or empty string
 	def getGeodinPath(self):
-		#get the GeODin installation path from registry
-		#return path or empty string
 		try:
 			key = OpenKey(HKEY_CURRENT_USER, r"Software\GeODin-System\System", 0, KEY_READ)
 			path, regtype = QueryValueEx(key, 'RootDir')
@@ -516,58 +562,48 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			return ''
 		return path.replace('\\','/')	
 		
+	## get the GeODin installation path from registry
+	#  return path or empty string
 	def getProgramData(self):
-		# get the geodin program information from geodin.ini
-		# return path
-		
-#		try:
-#			geodin_path = self.getGeodinPath()
-#			# locate geodin.ini in installation folder
-#			ini = geodin_path + "\\GEODIN.INI"
-#			
-#			# read geodin.ini and get path to program data
-#			geodinConfig = ConfigParser()
-#			geodinConfig.read(ini)
-#			path_data = geodinConfig.get('SYSTEM', 'ProgramData')
-#			
-#		except:
-#			print "Fehler: Program Data"
-#			return
-#			
-#		return path_data
-		
-		
-		#get the GeODin installation path from registry
-		#return path or empty string
 		try:
 			key = OpenKey(HKEY_CURRENT_USER, r"Software\GeODin-System\ChildWindows\GRFMAIN\QVLayoutFolders", 0, KEY_READ)
 			path_data, regtype = QueryValueEx(key, 'E0')
 			CloseKey(key)
 		except WindowsError as e:
-			self.lgr.info('{0}: {1}'.format(e, r"Computer\HKEY_CURRENT_USER\Software\GeODin-System\ChildWindows\GRFMAIN\QVLayoutFolders"))
+			self.lgr.info('{0}: {1}'.format(e, r"Computer\HKEY_CURRENT_USER\Software\GeODin-System\ChildWindows\GRFMAIN\QVLayoutFolders (no value found)"))
 			return ''		
 		return path_data
 
+	## execute queries in GeODin database
+	#
+	#  @param database database object
+	#  @param level node level (0 - load only project names and description; 1 - load information of specific project)
+	#  @param project project object (desired if level 1)
 	def load_db(self, database, level, project = None):
-		# execute queries in GeODin database
 		if level == 0:
 			#load only project names and description
-			query = '''SELECT DISTINCT LOCPRMGR.PRJ_ID, LOCPRMGR.PRJ_USER, LOCPRMGR.PRJ_DATE, LOCPRMGR.PRJ_ALIAS, LOCPRMGR.PRJ_NAME
-						FROM {0}GEODIN_LOC_LOCREG INNER JOIN {0}LOCPRMGR ON GEODIN_LOC_LOCREG.PRJ_ID = LOCPRMGR.PRJ_ID
-						ORDER BY LOCPRMGR.PRJ_NAME;
-						'''.format(database.owner)		
+			query = """SELECT DISTINCT LOCPRMGR.PRJ_ID, LOCPRMGR.PRJ_USER, LOCPRMGR.PRJ_DATE, LOCPRMGR.PRJ_ALIAS, LOCPRMGR.PRJ_NAME 
+						FROM {0}GEODIN_LOC_LOCREG INNER JOIN {0}LOCPRMGR ON GEODIN_LOC_LOCREG.PRJ_ID = LOCPRMGR.PRJ_ID 
+						ORDER BY LOCPRMGR.PRJ_NAME
+					""".format(database.owner)
 		elif level == 1:
 			#load information of specific project
 			query = """SELECT GEODIN_LOC_LOCREG.LONGNAME, GEODIN_SYS_LOCTYPES.GEN_NAME, GEODIN_LOC_LOCREG.INVID, GEODIN_LOC_LOCREG.SHORTNAME, GEODIN_LOC_LOCREG.XCOORD, GEODIN_LOC_LOCREG.YCOORD, GEODIN_LOC_LOCREG.EPSG, GEODIN_LOC_LOCREG.LOCTYPE
 						FROM {1}GEODIN_SYS_LOCTYPES INNER JOIN ({1}GEODIN_LOC_LOCREG INNER JOIN {1}LOCPRMGR ON GEODIN_LOC_LOCREG.PRJ_ID = LOCPRMGR.PRJ_ID) ON GEODIN_SYS_LOCTYPES.GEN_DESC = GEODIN_LOC_LOCREG.LOCTYPE
 						WHERE LOCPRMGR.PRJ_ID='{0}'
-						ORDER BY LOCPRMGR.PRJ_NAME, GEODIN_SYS_LOCTYPES.GEN_NAME;
+						ORDER BY LOCPRMGR.PRJ_NAME, GEODIN_SYS_LOCTYPES.GEN_NAME
 					""".format(project.id, database.owner)
 		try:
 			result = None
-			if database.options["connection"] == "ODBC":
+			if database.options["connection"] == "MSACC":
 				#connect to local Microsoft database files (*.mdb, *.accdb)
-				if 'pyodbc' in sys.modules.keys():
+				
+				if not os.path.exists(database.filepath):
+					QMessageBox.warning(self, 'Error', self.dictionary.getWord(self.lang,'Database file not found.'))
+					self.lgr.error('path='+database.filepath+', alias='+database.name + ', error=file not exists')
+					return 1
+				
+				if 'pyodbc' in list(sys.modules.keys()):
 					connection = pyodbc.connect("Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ="+database.filepath+";")
 				else:
 					connection = pypyodbc.win_connect_mdb(database.filepath)
@@ -580,11 +616,11 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			elif database.options["connection"] == "DSNConnection":
 				#connect to DSN connection
 				try:
-					if 'pyodbc' in sys.modules.keys():
+					if 'pyodbc' in list(sys.modules.keys()):
 						connection = pyodbc.connect("DSN="+database.options["DSN"])
 					else:
 						connection = pypyodbc.connect("DSN="+database.options["DSN"])
-				except Exception,e:
+				except Exception as e:
 					QMessageBox.warning(self, 'Error', str(e))
 					self.lgr.error('path='+database.filepath+', name='+database.name + ', error=' +str(e))
 					return 1
@@ -600,7 +636,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 					try:
 						database.options["uname"] = login.uname
 						database.options["upassword"] = login.upassword
-						if 'pyodbc' in sys.modules.keys():
+						if 'pyodbc' in list(sys.modules.keys()):
 							connection = pyodbc.connect("DRIVER={SQL Server};SERVER="+database.options["ip"]+";DATABASE="+database.options["database"]+";UID="+database.options["uname"]+";PWD="+database.options["upassword"])
 						else:
 							return 1
@@ -611,7 +647,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 						database.options["upassword"] = ""
 						return 1
 				else:
-					if 'pyodbc' in sys.modules.keys():
+					if 'pyodbc' in list(sys.modules.keys()):
 						connection = pyodbc.connect("DRIVER={SQL Server};SERVER="+database.options["ip"]+";DATABASE="+database.options["database"]+";UID="+database.options["uname"]+";PWD="+database.options["upassword"])
 					else:
 						return 1
@@ -639,7 +675,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				else:
 					try:
 						connection = _mysql.connect(database.options["ip"], database.options["uname"], database.options["upassword"], database.options["database"])
-					except Exception,e:
+					except Exception as e:
 						QMessageBox.warning(self, 'Error', str(e))
 						return 1
 
@@ -653,7 +689,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				connection.close()
 			elif database.options["connection"] == "PostgreSQL":
 				#connect to PostgreSQL databases
-				if 'psycopg2' in sys.modules.keys():
+				if 'psycopg2' in list(sys.modules.keys()):
 					if not database.options["uname"] or not database.options["upassword"]:
 						#if no user name or password in registry open a login dialog
 						login = Login(database.options["uname"], database.options["upassword"])
@@ -679,34 +715,51 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				cursor.close()
 				connection.close()
 			
-			# elif database.options["connection"] == "Oracle":
-				# if 'pyodbc' in sys.modules.keys():
-					# if not database.options["uname"] or not database.options["upassword"]:
-						# #if no user name or password in registry open a login dialog
-						# login = Login(database.options["uname"], database.options["upassword"])
-						# try:
-							# database.options["uname"] = login.uname
-							# database.options["upassword"] = login.upassword
-							# #connection = psycopg2.connect("dbname={0} user={1} host={2} password={3}".format(database.options["database"], database.options["uname"], database.options["ip"], database.options["upassword"]))
-							# print database.options
-							# connection = pyodbc.connect('Driver={4};Server={2}/{0}.{2};uid={1};pwd={3}'.format(database.options["database"], database.options["uname"], database.options["ip"], database.options["upassword"], '{Microdsoft ODBC for Oracle}'))
-							# del login
-						# except:
-							# del login
-							# QMessageBox.warning(self, 'Error', 'Bad user or password')
-							# database.options["upassword"] = ""
-							# return 1
-					# else:
-						# #otherwise login with given data
-						# #connection = psycopg2.connect("dbname={0} user={1} host={2} password={3}".format(database.options["database"], database.options["uname"], database.options["ip"], database.options["upassword"]))
-						# connection = pyodbc.connect('Driver={4};Server={2}/{0};uid={1};pwd={3}'.format(database.options["database"], database.options["uname"], database.options["ip"], database.options["upassword"], '{Microdsoft ODBC for Oracle}'))
-				# else:
-					# return 1
-				# cursor = connection.cursor()
-				# cursor.execute(query)
-				# result = cursor.fetchall()		
-				# cursor.close()
-				# connection.close()
+			elif database.options["connection"] == "Oracle":
+				if QSqlDatabase.isDriverAvailable('QOCI'):
+					if not database.options["uname"] or not database.options["upassword"]:
+						#if no user name or password in registry open a login dialog
+						login = Login(database.options["uname"], database.options["upassword"])
+						try:
+							database.options["uname"] = login.uname
+							database.options["upassword"] = login.upassword
+							connection = QSqlDatabase.addDatabase("QOCI")
+							connection.setDatabaseName(database.options["ip"] + '/' + database.options["database"])
+							connection.setUserName(database.options["uname"])
+							connection.setPassword(database.options["upassword"])
+
+							del login
+						except:
+							del login
+							QMessageBox.warning(self, 'Error', 'Bad user or password')
+							database.options["upassword"] = ""
+							return 1
+					
+					
+					else:
+						#otherwise login with given data
+						connection = QSqlDatabase.addDatabase("QOCI")
+						connection.setDatabaseName(database.options["ip"] + '/' + database.options["database"])
+						connection.setUserName(database.options["uname"])
+						connection.setPassword(database.options["upassword"])
+
+				else:
+					# fix_print_with_import
+					print('Oracle driver not available')
+					return 1
+				
+				connectionOpen = connection.open()
+				cursor = QSqlQuery(connection)
+				runable = cursor.exec_(query)
+				rec = cursor.record()
+				result = []
+				while next(cursor):
+					row = []
+					for i in range(rec.count()):
+						row.append(cursor.value(i))
+					result.append(row)
+				cursor.clear()
+				connection.close()
 
 			else:
 				QMessageBox.information(None, database.options["connection"], self.dictionary.getWord(self.lang,"no appropriate database drivers"))
@@ -771,11 +824,11 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			self.lgr.error('path='+database.filepath+', alias='+database.name + ', error=' +str(sys.exc_info()[0]))
 			return 1
 		return 0
-		#return 0
-
-		
+	
+	## create a TopLevelItem in QTreeWidget (database item)
+	#
+	#  @param database database object which should be the new tree item
 	def newTopLevelItem(self, database):
-		#create a TopLevelItem in QTreeWidget (database item)
 		self.dbs.append(database)
 		item = TreeWidgetItem([database.name])
 		item.setIcon(0, self.dbicon)
@@ -785,20 +838,22 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		item.extraInformation = database
 		item.normalString = database.name
 		self.treeWidget.addTopLevelItem(item)
-		
+
+	## build the QTreeWidget:
+	#  1. possibility: the clicked item is a database item and has currently no child items
+	#  2. possibility: the clicked item is a project item and has currently no child items
+	#  3. possibility: the clicked item is a query item and has currently no child items
+	#  @param clickedItem empty if expand database item with right click menu
+	#  @param clickedColumn 
 	def buildTree(self, clickedItem = None, clickedColumn = None):
-		#build the QTreeWidget:
-		#1. possibility: the clicked item is a database item and has currently no child items
-		#2. possibility: the clicked item is a project item and has currently no child items
-		#3. possibility: the clicked item is a query item and has currently no child items
-		
 		if not clickedItem:
 			#expand database item with right click menu
 			try:
 				clickedItem = self.treeWidget.itemFromIndex(self.treeWidget.selectedIndexes()[0])
-			except Exception,e:
+			except Exception as e:
 #				self.lgr.error('name='+prj.name+', id='+prj.id+ ', user='+prj.user+', alias='+prj.alias+', error=' +str(e))
-				print str(e)
+				# fix_print_with_import	
+				print(str(e))
 
 		if clickedItem and clickedItem.itemType == DATABASEITEM and clickedItem.childCount() == 0:
 			#load projects and documents
@@ -831,14 +886,14 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 					else:
 						proj_tip = prj.id  + "\n" + prj.user + "\n" + str(prj.date)
 					item_prj.setToolTip(0, proj_tip)
-				except Exception,e :
+				except Exception as e :
 					self.lgr.error('name='+prj.name+', id='+prj.id+ ', user='+prj.user+', alias='+prj.alias+', error=' +str(e))
 				clickedItem.addChild(item_prj)
 
 
 				clickedItem.sortChildren(0,Qt.AscendingOrder)
 	
-			query_name = self.getDBQueries(database)
+			query_name = self.getDBQueries(database, "DBDEF")
 			if query_name:
 				for query in query_name:
 					queryObject = Query(query, database)
@@ -876,11 +931,13 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 								item_shp.setIcon(0, self.shpicon)
 								item_shp.setToolTip(0, shape_path_string)
 								#item_shp.normalString = ("/").join(database.filepath.split("/")[:-1]+shape_path[1:])
+								#print shape_path_string.replace("$%DBROOT$",os.path.dirname(database.filepath))
 								item_shp.normalString = shape_path_string.replace("$%DBROOT$",self.config.get('Options', 'geodinrootdir')).replace('C:/Program Files (x86)/GeODin/','C:/ProgramData/Fugro/GeODin/').replace('\\','/').replace('//','/')
+								item_shp.normalString = shape_path_string.replace("$%DBROOT$",os.path.dirname(database.filepath)).replace('\\','/').replace('//','/')
 								item_shp.itemType = DOCUMENTITEM
 								children.append(item_shp)
 								children[j-1].addChild(children[j])
-					except Exception,e:
+					except Exception as e:
 						p = ("/").join(database.filepath.split("/")[:-1]+shape_path[1:])
 						self.lgr.error('path='+p+', name='+data_name[i] + ', error=' +str(e[1]))
 
@@ -905,7 +962,10 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		if clickedColumn==None:
 			clickedItem.setExpanded(True)
 			
-		
+	
+	## add object, document and query nodes to project tree item
+	#  @param database parent database object
+	#  @param item_prj tree widget item which represents the project in tree view
 	def buildProjects(self, database, item_prj):
 		project = item_prj.extraInformation
 		item_obj = TreeWidgetItem([self.dictionary.getWord(self.lang,"Objects")])
@@ -978,20 +1038,16 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 
 		try:
 			#user queries
-			query = """SELECT GEODIN_SYS_PRJDEFS.OBJ_NAME
-						FROM {1}GEODIN_SYS_PRJDEFS
-						WHERE GEODIN_SYS_PRJDEFS.PRJ_ID = '{0}' AND GEODIN_SYS_PRJDEFS.OBJ_DESC = 'LOCQUERY' """.format(item_prj.extraInformation.id, database.owner)
-			result = self.connectToDatabase(database, query)
-			
+			result = self.getDBQueries(database, project.id)
 			for row in result:
-				queryObject = Query(row[0], project)
+				queryObject = Query(row, project)
 				project.queries.append(queryObject)
 				
-				queryItem = TreeWidgetItem([row[0]])			
+				queryItem = TreeWidgetItem([row])			
 				queryItem.setIcon(0, self.queryIcon)
 				queryItem.extraInformation = queryObject
 				queryItem.itemType = DBQUERYITEM
-				queryItem.normalString = row[0]
+				queryItem.normalString = row
 				item_obj.addChild(queryItem)
 		except:
 			pass
@@ -1001,7 +1057,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			query = """SELECT * 
 						FROM {1}GEODIN_QGIS_QUERY 
 						WHERE GEODIN_QGIS_QUERY.PRJ_ID = '{0}'
-						ORDER BY GEODIN_QGIS_QUERY.QUERY_NAME;""".format(item_prj.extraInformation.id, database.owner)
+						ORDER BY GEODIN_QGIS_QUERY.QUERY_NAME""".format(item_prj.extraInformation.id, database.owner)
 			result = self.connectToDatabase(database, query)
 			
 			for row in result:
@@ -1018,8 +1074,8 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		except:
 			pass
 
+	## remove database connection from tree
 	def deleteTree(self):
-		#remove database connection from tree
 		selectedItem = self.treeWidget.itemFromIndex(self.treeWidget.selectedIndexes()[0])
 		selectedItem.setExpanded(False)
 		selectedItem.takeChildren()
@@ -1031,9 +1087,12 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		elif selectedItem.itemType == PROJECTITEM:
 			selectedItem.setIcon(0, self.prjicon)
 			selectedItem.extraInformation.deleteData()
-			
-	def treeMenu(self, position):
-		#right click menu
+	
+	## right click menu
+	#  @param position mouse position for locating the position of the context menu
+	def treeMenu(self, position):   
+		if not len(self.treeWidget.selectedIndexes()):
+			return
 		selectedItem = self.treeWidget.itemFromIndex(self.treeWidget.selectedIndexes()[0])
 		menu = QMenu()
 		if selectedItem.itemType == DATABASEITEM:
@@ -1041,37 +1100,38 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			closeDB = menu.addAction(self.dbicon, self.dictionary.getWord(self.lang,"Close database"))
 			delDB = menu.addAction(self.dbicon_del, self.dictionary.getWord(self.lang,"Delete database connection"))
 			recDB = menu.addAction(self.new_obj, self.dictionary.getWord(self.lang,"Edit database connection"))
-			QObject.connect(openDB, SIGNAL("triggered()"), self.buildTree)
-			QObject.connect(closeDB, SIGNAL("triggered()"), self.deleteTree)
-			QObject.connect(delDB, SIGNAL("triggered()"), self.deleteDB)
-			QObject.connect(recDB, SIGNAL("triggered()"), self.reconnectDB)
+			openDB.triggered.connect(self.buildTree)
+			closeDB.triggered.connect(self.deleteTree)
+			delDB.triggered.connect(self.deleteDB)
+			recDB.triggered.connect(self.reconnectDB)
 
 		elif selectedItem.itemType == DOCUMENTITEM:
 			if selectedItem.childCount():
 				newLayer = menu.addAction(self.new_obj, self.dictionary.getWord(self.lang,"Add all layers to QGIS"))
-				QObject.connect(newLayer, SIGNAL("triggered()"), self.addLayer)
+				newLayer.triggered.connect(self.addLayer)
 			else:
 				newLayer = menu.addAction(self.new_obj, self.dictionary.getWord(self.lang,"Add layer to QGIS"))
-				QObject.connect(newLayer, SIGNAL("triggered()"), self.addLayer)
+				newLayer.triggered.connect(self.addLayer)
 
 		elif selectedItem.itemType == OBJECTTYPEITEM:
+			print ('onject works')
 			newObject = menu.addAction(self.new_obj, self.dictionary.getWord(self.lang,"New object"))
 			createShape = menu.addAction(self.new_obj, self.dictionary.getWord(self.lang,"Add Points to QGIS"))
 			
-			QObject.connect(newObject, SIGNAL("triggered()"), self.createObj)
-			QObject.connect(createShape, SIGNAL("triggered()"), self.createShape)
+			newObject.triggered.connect(self.createObj)
+			createShape.triggered.connect(self.createShape)
 
 		elif selectedItem.itemType == PROJECTITEM:
 		
 			openProject = menu.addAction(self.prjicon_open, self.dictionary.getWord(self.lang,"Open project"))
 			closeProject = menu.addAction(self.prjicon, self.dictionary.getWord(self.lang,"Close project"))
 		
-			QObject.connect(openProject, SIGNAL("triggered()"), self.buildTree)
-			QObject.connect(closeProject, SIGNAL("triggered()"), self.deleteTree)
+			openProject.triggered.connect(self.buildTree)
+			closeProject.triggered.connect(self.deleteTree)
 			
 			if selectedItem.childCount() > 0:
 				createQuery = menu.addAction(self.ownQueryIcon, self.dictionary.getWord(self.lang,"New query"))
-				QObject.connect(createQuery, SIGNAL("triggered()"), self.createQuery)
+				createQuery.triggered.connect(self.createQuery)
 		
 		elif selectedItem.itemType == QUERYITEM:
 			editQuery = menu.addAction(self.ownQueryIcon, self.dictionary.getWord(self.lang,"Edit query"))
@@ -1079,30 +1139,36 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			deleteQuery = menu.addAction(self.ownQueryIcon, self.dictionary.getWord(self.lang,"Delete query"))
 			createShape = menu.addAction(self.new_obj, self.dictionary.getWord(self.lang,"Add Points to QGIS"))
 
-			QObject.connect(editQuery, SIGNAL("triggered()"), self.editQuery)
-			QObject.connect(runQuery, SIGNAL("triggered()"), self.runQuery)
-			QObject.connect(deleteQuery, SIGNAL("triggered()"), self.deleteQuery)
-			QObject.connect(createShape, SIGNAL("triggered()"), self.createShape)
+			editQuery.triggered.connect(self.editQuery)
+			runQuery.triggered.connect(self.runQuery)
+			deleteQuery.triggered.connect(self.deleteQuery)
+			createShape.triggered.connect(self.createShape)
 			
 		elif selectedItem.itemType == DBQUERYITEM:
 			runQuery = menu.addAction(self.queryIcon, self.dictionary.getWord(self.lang,"Run query"))
 			createShape = menu.addAction(self.new_obj, self.dictionary.getWord(self.lang,"Add Points to QGIS"))
 
-			QObject.connect(runQuery, SIGNAL("triggered()"), self.runDBQuery)
-			QObject.connect(createShape, SIGNAL("triggered()"), self.createShape)
+			runQuery.triggered.connect(self.runDBQuery)
+			createShape.triggered.connect(self.createShape)
 		
 		elif selectedItem.itemType == OBJECTITEM:
-			if selectedItem.extraInformation.parent.parent.system:
+			print ('Still not complete')
+			#temporary solution (tmp) seems to be working for the moment
+			print (type(selectedItem.extraInformation.parent.parent.system))
+			if not selectedItem.extraInformation.parent.parent.system:
+				print ('is not True')
+			if selectedItem.extraInformation.parent.parent.system or True:
 				if "GeODinQGIS.extras.layout" in sys.modules.keys():
 					showLayout = menu.addAction(self.new_obj, self.dictionary.getWord(self.lang,"Show layout"))
-					QObject.connect(showLayout, SIGNAL("triggered()"), self.showLayout)
+					showLayout.triggered.connect(self.showLayout)
 					
 				openGeODin = menu.addAction(self.geodinicon, self.dictionary.getWord(self.lang,"open GeODin"))
 				
-				QObject.connect(openGeODin, SIGNAL("triggered()"), self.openGeODin)	
-			
+				openGeODin.triggered.connect(self.openGeODin)
+		
 		menu.exec_(self.treeWidget.viewport().mapToGlobal(position))
 
+	## controls the communication with the layout module
 	def showLayout(self):
 		item = self.treeWidget.itemFromIndex(self.treeWidget.selectedIndexes()[0])
 		if not self.layoutDialog:
@@ -1112,9 +1178,11 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			self.layoutDialog.object = item.extraInformation
 		else:
 			self.layoutDialog.object = item.extraInformation
-	
+
+	## runs a GeODin database query through a COM function
 	def runDBQuery(self):
 		try:
+			QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
 			item = self.treeWidget.itemFromIndex(self.treeWidget.selectedIndexes()[0])
 			databaseItem = item
 			projectItem = None
@@ -1140,38 +1208,52 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 
 			params = "[Params]\nMethod=FeatureCollection\nFilename={0}\n".format(self.tmpDirectory+"\query.json")
 			GeODin.ExecuteMethodParams(60,params)
-
 			if GeODin.ExceptionValue:
-				print "Error ID:"+ str(GeODin.ExceptionValue)
-				print "Error Message:"+GeODin.ExceptionMsg
+				# fix_print_with_import
+				print ("Error ID:"+ str(GeODin.ExceptionValue))
+				print ("Error Message:"+GeODin.ExceptionMsg)
 
 			time.sleep(3)
 			GeODin = None
-		except Exception,e:
+		except Exception as e:
 			self.lgr.error("runDBQueryCOMFunction= {0}".format(str(e)))
+		finally:
+			QApplication.restoreOverrideCursor()
 
 		try:
+			QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
 			result = Dict(self.tmpDirectory+"\query.json").getDictionary()
 			item.takeChildren()
 			item.extraInformation.objects = []
 			
 			msgBox = QMessageBox()
-			msgBox.setInformativeText(u"Möchten Sie das Projekt laden?")
+			msgBox.setInformativeText(self.dictionary.getWord(self.lang,"Do you want to load the project?"))
 			msgBox.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
 			msgBox.setDefaultButton(QMessageBox.Cancel)
 			msgBox.setWindowTitle('Warning')
 
 			database =  databaseItem.extraInformation
+			continueProject = ""
+			
 			for queryObject in result["features"]:
 				project = database.getProject(queryObject["properties"]["INVID"][0:6])
+				if project.id == continueProject:
+					#falls ein Projekt zuvor schon als "nicht laden" markiert wurde
+					continue
 				if not project.objects:
-					msgBox.setText(u"Projekt '{0}' muss geöffnet werden.".format(project.name))
+					msgBox.setText(self.dictionary.getWord(self.lang,"Project '{0}' must be opened.").format(project.name))
+					QApplication.restoreOverrideCursor()
 					if msgBox.exec_() == 1024:
+						QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
 						projectItem = searchItem(databaseItem, project.id)
 						self.buildTree(projectItem)
-
+					else:
+						#Projekte welche nicht geöfnet werden sollen, werden übersprungen
+						continueProject = project.id
+						QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+						continue
 				obj = project.getObject(queryObject["properties"]["INVID"])
-				
+
 				if not obj:
 					break
 				info = queryObject["properties"]
@@ -1193,14 +1275,19 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			os.unlink(self.tmpDirectory+"\query.json")
 			if os.path.isfile(self.tmpDirectory+"\query.~json"):
 				os.unlink(self.tmpDirectory+"\query.~json")
-		except Exception,e:
+		except Exception as e:
 			self.lgr.error("runDBQueryLoadObjects: {0}".format(str(e)))
-		
+		finally:
+			QApplication.restoreOverrideCursor()
+	
+	## executes a database query created in QGIS
+	#
+	#  with the help of the wildcard ':?' queries can be parameterized
 	def runQuery(self):
 		item = self.treeWidget.itemFromIndex(self.treeWidget.selectedIndexes()[0])
 		database = item.extraInformation.parent.parent
 		sqlStatement = item.extraInformation.sql.upper().replace('\n',' ').replace(',',' ').split(' ')
-		sqlStatement = filter(lambda x: x != '', sqlStatement)
+		sqlStatement = [x for x in sqlStatement if x != '']
 		parameters=[]
 		connections = ['If']
 		whereStart = False
@@ -1254,13 +1341,14 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				if 'locreg' in parameter[0].lower():
 					parameter[0] = self.dictionary.getWord(self.lang,locreg(parameter[0].split('.')[1]))
 				elif 'loc' in parameter[0].lower():
-					longQuery = "SELECT FIELD_LONG FROM GEODIN_SYS_LOCSTRS WHERE TAB_DESC = '"+parameter[0].split('.')[0].split('_')[2]+"' AND FIELD_NAME = '"+parameter[0].split('.')[1]+"';"
+					longQuery = "SELECT FIELD_LONG FROM GEODIN_SYS_LOCSTRS WHERE TAB_DESC = '"+parameter[0].split('.')[0].split('_')[2]+"' AND FIELD_NAME = '"+parameter[0].split('.')[1]+"'"
 					parameter[0] = self.connectToDatabase(database, longQuery)[0][0]
 				elif 'mes' in parameter[0].lower():
-					longQuery = "SELECT FIELD_LONG FROM GEODIN_SYS_MESSTRS WHERE TAB_DESC = '"+parameter[0].split('.')[0].split('_')[2]+"' AND FIELD_NAME = '"+parameter[0].split('.')[1]+"';"
+					longQuery = "SELECT FIELD_LONG FROM GEODIN_SYS_MESSTRS WHERE TAB_DESC = '"+parameter[0].split('.')[0].split('_')[2]+"' AND FIELD_NAME = '"+parameter[0].split('.')[1]+"'"
 					parameter[0] = self.connectToDatabase(database, longQuery)[0][0]
-		except Exception, e:
-			print str(e)
+		except Exception as e:
+			# fix_print_with_import
+			print(str(e))
 			return
 
 
@@ -1298,8 +1386,9 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			sqlStatement = sqlStatement.replace("$PRJID", item.extraInformation.parent.id)
 		try:
 			result = self.connectToDatabase(database, sqlStatement)
-		except Exception, e:
-			print str(e[1])
+		except Exception as e:
+			# fix_print_with_import
+			print(str(e[1]))
 			return
 
 		item.takeChildren()
@@ -1324,39 +1413,41 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		
 		if item.childCount() > 0 and not item.isExpanded():
 			item.setExpanded(True)
-		
+	
+	## create a new query in QGIS
+	#
+	#  if the GEODIN_QGIS_QUERY table does not exist, it will be created in the database
 	def createQuery(self):
-		# get instance from mouse click position
 		item = self.treeWidget.itemFromIndex(self.treeWidget.selectedIndexes()[0])
 		
 		newQuery = QueryDialog()
 		if newQuery.accepted:
 			#Create a new table in the GeODin database
-			query = """CREATE TABLE GEODIN_QGIS_QUERY (id AUTOINCREMENT PRIMARY KEY, PRJ_ID varchar(6), QUERY_NAME varchar(255) UNIQUE , QUERY longtext);"""
+			query = """CREATE TABLE GEODIN_QGIS_QUERY (id AUTOINCREMENT PRIMARY KEY, PRJ_ID varchar(6), QUERY_NAME varchar(255) UNIQUE , QUERY longtext)"""
 			database=self.dbs[[db.name for db in self.dbs].index(item.parent().normalString)]
 			self.connectToDatabase(database, query, True)
-			query = """INSERT INTO GEODIN_QGIS_QUERY(PRJ_ID, QUERY_NAME, QUERY) values (?, ?, ?);"""
-			#try:
-			self.connectToDatabase(database, query, True, [item.extraInformation.id, newQuery.queryName, newQuery.sqlCommand])
-			
-			queryObject = Query(newQuery.queryName, item.extraInformation)
-			queryObject.sql = newQuery.sqlCommand
-			item.extraInformation.queries.append(queryObject)
-			
-			queryItem = TreeWidgetItem([newQuery.queryName])			
-			queryItem.setIcon(0, self.ownQueryIcon)
-			queryItem.extraInformation = queryObject
-			queryItem.itemType = QUERYITEM
-			queryItem.normalString = newQuery.queryName
-			item.child(0).addChild(queryItem)
-			
-			#except:
-			#	QMessageBox.warning(self, 'Error', u"Die von Ihnen gewünschten Änderungen an der Tabelle konnten nicht vorgenommen werden, da der Index, der Primärschlüssel oder die Beziehung mehrfach vorkommende Werte enthalten würde. Ändern Sie die Daten in den Feldern, die gleiche Daten enthalten, entfernen Sie den Index, oder definieren Sie den Index neu, damit doppelte Einträge möglich sind, und versuchen Sie es erneut.")
-			
+			query = """INSERT INTO GEODIN_QGIS_QUERY(PRJ_ID, QUERY_NAME, QUERY) values (?, ?, ?)"""
+			try:
+				self.connectToDatabase(database, query, True, [item.extraInformation.id, newQuery.queryName, newQuery.sqlCommand.rstrip(';')])
+				
+				queryObject = Query(newQuery.queryName, item.extraInformation)
+				queryObject.sql = newQuery.sqlCommand
+				item.extraInformation.queries.append(queryObject)
+				
+				queryItem = TreeWidgetItem([newQuery.queryName])			
+				queryItem.setIcon(0, self.ownQueryIcon)
+				queryItem.extraInformation = queryObject
+				queryItem.itemType = QUERYITEM
+				queryItem.normalString = newQuery.queryName
+				item.child(0).addChild(queryItem)
+			except:
+				QMessageBox.warning(self, 'Error', u"Die von Ihnen gewünschten Änderungen an der Tabelle konnten nicht vorgenommen werden, da der Index, der Primärschlüssel oder die Beziehung mehrfach vorkommende Werte enthalten würde. Ändern Sie die Daten in den Feldern, die gleiche Daten enthalten, entfernen Sie den Index, oder definieren Sie den Index neu, damit doppelte Einträge möglich sind, und versuchen Sie es erneut.")
+	
+	## Queries and the associated name can be changed
 	def editQuery(self):
 		item = self.treeWidget.itemFromIndex(self.treeWidget.selectedIndexes()[0])
 		database=self.dbs[[db.name for db in self.dbs].index(item.extraInformation.parent.parent.name)]
-		query = """SELECT id FROM GEODIN_QGIS_QUERY WHERE QUERY_NAME='{0}';""".format(item.normalString)
+		query = """SELECT id FROM GEODIN_QGIS_QUERY WHERE QUERY_NAME='{0}'""".format(item.normalString)
 		id = self.connectToDatabase(database, query)
 		if not id:
 			return
@@ -1364,29 +1455,33 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		
 		queryObject = QueryDialog(item.extraInformation.name, item.extraInformation.sql)
 		if queryObject.accepted:
-			query = """UPDATE GEODIN_QGIS_QUERY SET QUERY_NAME=?, QUERY=? WHERE id=?;"""
-			parameter = [queryObject.queryName, queryObject.sqlCommand, id]
+			query = """UPDATE GEODIN_QGIS_QUERY SET QUERY_NAME=?, QUERY=? WHERE id=?"""
+			parameter = [queryObject.queryName, queryObject.sqlCommand.rstrip(';'), id]
 			try:
 				self.connectToDatabase(database, query, True, parameter)
 				item.setText(0, queryObject.queryName)
-				item.extraInformation.sql = queryObject.sqlCommand
+				item.extraInformation.sql = queryObject.sqlCommand.rstrip(';')
 				item.extraInformation.name = queryObject.queryName
 				item.normalString = queryObject.queryName
 				item.takeChildren()
-			except:
+			except AttributeError as e:
+				# fix_print_with_import
+				print(e)
+			except Exception as e:
 				QMessageBox.warning(self, 'Error', u"Die von Ihnen gewünschten Änderungen an der Tabelle konnten nicht vorgenommen werden, da der Index, der Primärschlüssel oder die Beziehung mehrfach vorkommende Werte enthalten würde. Ändern Sie die Daten in den Feldern, die gleiche Daten enthalten, entfernen Sie den Index, oder definieren Sie den Index neu, damit doppelte Einträge möglich sind, und versuchen Sie es erneut.")
-		
+	
+	## delete a query
 	def deleteQuery(self):
 		item = self.treeWidget.itemFromIndex(self.treeWidget.selectedIndexes()[0])
 
 		database=self.dbs[[db.name for db in self.dbs].index(item.extraInformation.parent.parent.name)]
-		query = """SELECT id FROM GEODIN_QGIS_QUERY WHERE QUERY_NAME='{0}';""".format(item.normalString)
+		query = """SELECT id FROM GEODIN_QGIS_QUERY WHERE QUERY_NAME='{0}'""".format(item.normalString)
 		id = self.connectToDatabase(database, query)
 		if not id:
 			return
 		id = id[0][0]
 		
-		query = """DELETE FROM GEODIN_QGIS_QUERY WHERE id=?;"""
+		query = """DELETE FROM GEODIN_QGIS_QUERY WHERE id=?"""
 		try:
 			self.connectToDatabase(database, query, True, [id])
 			item.takeChildren()
@@ -1395,17 +1490,22 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		except:
 			QMessageBox.warning(self, 'Error', u"Die von Ihnen gewünschten Änderungen an der Tabelle konnten nicht vorgenommen werden, da der Index, der Primärschlüssel oder die Beziehung mehrfach vorkommende Werte enthalten würde. Ändern Sie die Daten in den Feldern, die gleiche Daten enthalten, entfernen Sie den Index, oder definieren Sie den Index neu, damit doppelte Einträge möglich sind, und versuchen Sie es erneut.")
 	
+	## represents all child objects in the map
+	#
+	#  creates a ShapeFromPoint object
 	def createShape(self):
 		item = self.treeWidget.itemFromIndex(self.treeWidget.selectedIndexes()[0])
 
 		try:
 			QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
 			ShapeFromPoint(self, item.extraInformation)
+		except Exception as e:
+			# fix_print_with_import
+			print(str(e))
+		finally:
 			QApplication.restoreOverrideCursor()
-		except Exception,e:
-			print str(e)
-			QApplication.restoreOverrideCursor()
-	
+
+	## expand a node
 	def expanded(self, item):
 		#called if TreeWidgetItem is expanded
 		if (item.itemType == DATABASEITEM or item.itemType== PROJECTITEM) and item.childCount() == 0 and not self.error:
@@ -1415,7 +1515,8 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		if item.itemType == PROJECTITEM:
 			item.setIcon(0, self.prjicon_open)
 		self.error = 0
-					
+	
+	## collapse a node	
 	def collapsed(self, item):
 		#called if TreeWidgetItem is collapsed
 		if item.itemType == DATABASEITEM:
@@ -1508,7 +1609,8 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 	
 	def createObj(self):
 		if self.deny == 1:
-			print "Permission denied"
+			# fix_print_with_import
+			print("Permission denied")
 		
 		else:
 			item = self.treeWidget.itemFromIndex(self.treeWidget.selectedIndexes()[0])						# coded name of current item (at mouse click position)
@@ -1555,124 +1657,193 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		except SystemError as e:
 			self.lgr.error('path={0}, error={1}'.format(database.filepath, str(e)))
 			pass	
-		except Exception,e:
+		except Exception as e:
 			self.lgr.error('path={0}, error={1}'.format(database.filepath, str(e)))
 			pass
 		return name, file
 
-	def getDBQueries(self, database):
+	def getDBQueries(self, database, PRJ_ID):
 		name = []
 		try:
+			#in Access Datenbanken ist kein user eingetragen und somit das Feld OBJ_OWNER immer leer
+			obj_owner = "";
+			if len(database.options["uname"]):
+				obj_owner =  """AND OBJ_OWNER = '{0}' """.format(database.options["uname"].upper())
+			else:
+				obj_owner =  """AND OBJ_OWNER IS NULL """
+				
 			query = """SELECT GEODIN_SYS_PRJDEFS.OBJ_NAME
 						FROM {0}GEODIN_SYS_PRJDEFS
-						WHERE GEODIN_SYS_PRJDEFS.PRJ_ID = 'DBDEF' AND GEODIN_SYS_PRJDEFS.OBJ_DESC = 'LOCQUERY' """.format(database.owner)
-						
+						WHERE GEODIN_SYS_PRJDEFS.PRJ_ID = '{1}' AND GEODIN_SYS_PRJDEFS.OBJ_DESC = 'LOCQUERY' {2}""".format(database.owner, PRJ_ID, obj_owner)
+
 			result = self.connectToDatabase(database, query)
-			
+
 			for row in result:
 				name.append(row[0])
 		except SystemError as e:
 			self.lgr.error('path={0}, error={1}'.format(database.filepath, e))
 			pass	
-		except Exception,e:
+		except Exception as e:
 			self.lgr.error('path={0}, error={1}'.format(database.filepath, str(e)))
 			pass
 		return name
 		
 	def connectToDatabase(self, database, query, create = False, param=None):
 		result = []
-		if not len(database.options.keys()) or database.options["connection"] == "ODBC":
-			if 'pyodbc' in sys.modules.keys():
-				connection = pyodbc.connect("Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ="+database.filepath+";")
-			else:
-				connection = pypyodbc.win_connect_mdb(database.filepath)
-			cursor = connection.cursor()
+		try:
+			if not len(list(database.options.keys())) or database.options["connection"] == "MSACC":
+				if 'pyodbc' in list(sys.modules.keys()):
+					connection = pyodbc.connect("Driver={Microsoft Access Driver (*.mdb, *.accdb)};DBQ="+database.filepath+";")
+				else:
+					connection = pypyodbc.win_connect_mdb(database.filepath)
+				cursor = connection.cursor()
 
-			if create:
-				# Does table 'GEODIN_QGIS_QUERY' exist?
-				if cursor.tables(table='GEODIN_QGIS_QUERY').fetchone():
-					if "CREATE" in query:
-						return
-					cursor.execute(query, param)
+				if create:
+					# Does table 'GEODIN_QGIS_QUERY' exist?
+					if cursor.tables(table='GEODIN_QGIS_QUERY').fetchone():
+						if "CREATE" in query:
+							return
+						cursor.execute(query, param)
+					else:
+						query = """CREATE TABLE GEODIN_QGIS_QUERY (id AUTOINCREMENT PRIMARY KEY, PRJ_ID varchar(6), QUERY_NAME varchar(255) UNIQUE , QUERY longtext)"""
+						cursor.execute(query)
+					connection.commit()
 				else:
-					query = """CREATE TABLE GEODIN_QGIS_QUERY (id AUTOINCREMENT PRIMARY KEY, PRJ_ID varchar(6), QUERY_NAME varchar(255) UNIQUE , QUERY longtext);"""
 					cursor.execute(query)
-				connection.commit()
-			else:
-				cursor.execute(query)
-				result = cursor.fetchall()
-			cursor.close()
-			connection.close()
-		elif database.options["connection"] == "DSNConnection":
-			connection = pyodbc.connect("DSN="+database.options["DSN"])
-			cursor = connection.cursor()
+					result = cursor.fetchall()
+				cursor.close()
+				connection.close()
+			elif database.options["connection"] == "DSNConnection":
+				connection = pyodbc.connect("DSN="+database.options["DSN"])
+				cursor = connection.cursor()
 
-			if create:
-				# Does table 'GEODIN_QGIS_QUERY' exist?
-				if cursor.tables(table='GEODIN_QGIS_QUERY').fetchone():
-					if "CREATE" in query:
-						return
-					cursor.execute(query, param)
+				if create:
+					# Does table 'GEODIN_QGIS_QUERY' exist?
+					if cursor.tables(table='GEODIN_QGIS_QUERY').fetchone():
+						if "CREATE" in query:
+							return
+						cursor.execute(query, param)
+					else:
+						cursor.execute(query)
+					connection.commit()
 				else:
 					cursor.execute(query)
-				connection.commit()
-			else:
-				cursor.execute(query)
-				result = cursor.fetchall()
-			cursor.close()
-			connection.close()
-			
-		elif database.options["connection"] == "MSSQL":
-			#connect to DSN connection
-			connection = pyodbc.connect("DRIVER={SQL Server};SERVER="+database.options["ip"]+";DATABASE="+database.options["database"]+";UID="+database.options["uname"]+";PWD="+database.options["upassword"])
-			cursor = connection.cursor()
-
-			if create:
-				# Does table 'GEODIN_QGIS_QUERY' exist?
-				if cursor.tables(table='GEODIN_QGIS_QUERY').fetchone():
-					if "CREATE" in query:
-						return
-					cursor.execute(query, param)
-				else:
-					query = """CREATE TABLE GEODIN_QGIS_QUERY (id int IDENTITY(1,1) PRIMARY KEY, PRJ_ID varchar(6), QUERY_NAME varchar(255) UNIQUE , QUERY varchar(max));"""
-					cursor.execute(query)
-				connection.commit()
-			else:
-				cursor.execute(query)
-				result = cursor.fetchall()
-			cursor.close()
-			connection.close()
-		elif database.options["connection"] == "MySQL":
-			connection = _mysql.connect(database.options["ip"], database.options["uname"], database.options["upassword"], database.options["database"])
-			connection.query(query)
-			r = connection.use_result()
-			row = r.fetch_row()
-			while row:
-				result.append(row)
-				row = r.fetch_row()
-			connection.close()
-		elif database.options["connection"] == "PostgreSQL":
-			connection = psycopg2.connect("dbname={0} user={1} host={2} password={3}".format(database.options["database"], database.options["uname"], database.options["ip"], database.options["upassword"]))
-			cursor = connection.cursor()
-			if create:
-				# Does table 'GEODIN_QGIS_QUERY' exist?
-				if "CREATE" in query:
-					query = """CREATE TABLE IF NOT EXISTS GEODIN_QGIS_QUERY (id serial PRIMARY KEY, PRJ_ID varchar(6), QUERY_NAME varchar(255) UNIQUE , QUERY text);"""
-					cursor.execute(query)
-				else:
-					i=0
-					while '?' in query:
-						query=query[:query.index('?')]+"'{"+str(i)+"}'"+query[query.index('?')+1:]
-						i+=1
-					query = query.format(param[0], param[1], param[2])
-					cursor.execute(query)
+					result = cursor.fetchall()
+				cursor.close()
+				connection.close()
 				
-				connection.commit()
-			else:
-				cursor.execute(query)
-				result = cursor.fetchall()
-			cursor.close()
-			connection.close()
+			elif database.options["connection"] == "MSSQL":
+				#connect to DSN connection
+				connection = pyodbc.connect("DRIVER={SQL Server};SERVER="+database.options["ip"]+";DATABASE="+database.options["database"]+";UID="+database.options["uname"]+";PWD="+database.options["upassword"])
+				cursor = connection.cursor()
+
+				if create:
+					# Does table 'GEODIN_QGIS_QUERY' exist?
+					if cursor.tables(table='GEODIN_QGIS_QUERY').fetchone():
+						if "CREATE" in query:
+							return
+						cursor.execute(query, param)
+					else:
+						query = """CREATE TABLE GEODIN_QGIS_QUERY (id int IDENTITY(1,1) PRIMARY KEY, PRJ_ID varchar(6), QUERY_NAME varchar(255) UNIQUE , QUERY varchar(max))"""
+						cursor.execute(query)
+					connection.commit()
+				else:
+					cursor.execute(query)
+					result = cursor.fetchall()
+				cursor.close()
+				connection.close()
+			elif database.options["connection"] == "MySQL":
+				connection = _mysql.connect(database.options["ip"], database.options["uname"], database.options["upassword"], database.options["database"])
+				connection.query(query)
+				r = connection.use_result()
+				row = r.fetch_row()
+				while row:
+					result.append(row)
+					row = r.fetch_row()
+				connection.close()
+			elif database.options["connection"] == "PostgreSQL":
+				connection = psycopg2.connect("dbname={0} user={1} host={2} password={3}".format(database.options["database"], database.options["uname"], database.options["ip"], database.options["upassword"]))
+				cursor = connection.cursor()
+				if create:
+					# Does table 'GEODIN_QGIS_QUERY' exist?
+					if "CREATE" in query:
+						query = """CREATE TABLE IF NOT EXISTS GEODIN_QGIS_QUERY (id serial PRIMARY KEY, PRJ_ID varchar(6), QUERY_NAME varchar(255) UNIQUE , QUERY text)"""
+						cursor.execute(query)
+					else:
+						i=0
+						while '?' in query:
+							query=query[:query.index('?')]+"'{"+str(i)+"}'"+query[query.index('?')+1:]
+							i+=1
+						query = query.format(param[0], param[1], param[2])
+						cursor.execute(query)
+					
+					connection.commit()
+				else:
+					cursor.execute(query)
+					result = cursor.fetchall()
+				cursor.close()
+				connection.close()
+			elif database.options["connection"] == "Oracle":
+				connection = QSqlDatabase.addDatabase("QOCI")
+				connection.setDatabaseName(database.options["ip"] + '/' + database.options["database"])
+				connection.setUserName(database.options["uname"])
+				connection.setPassword(database.options["upassword"])
+
+				connectionOpen = connection.open()
+				cursor = QSqlQuery(connection)
+
+				if create:
+					# Does table 'GEODIN_QGIS_QUERY' exist?
+					if "CREATE" in query:
+						query = """CREATE TABLE GEODIN_QGIS_QUERY( id number(*,0) NOT NULL,  PRJ_ID varchar2(6) NOT NULL,  QUERY_NAME varchar2(255),  QUERY clob,  CONSTRAINT id_pk PRIMARY KEY (id))"""
+						t = cursor.exec_(query)
+
+					elif "INSERT INTO" in query:
+						query = """INSERT INTO GEODIN_QGIS_QUERY(ID, PRJ_ID, QUERY_NAME, QUERY) SELECT NVL(MAX(ID), 0) + 1 AS ID, ? AS PRJ_ID, ? AS QUERY_NAME, ? AS QUERY FROM GEODIN_QGIS_QUERY"""
+						cursor.prepare(query)
+						i = 0
+						index = 0
+						while '?' in query[index:]:
+							cursor.addBindValue(param[i])
+							i+=1
+							index = query.index('?', index) + 1
+						t = cursor.exec_()
+						if not t:
+							# fix_print_with_import
+							print(cursor.lastError().text())
+					else:
+						cursor.prepare(query)
+						i = 0
+						index = 0
+						while '?' in query[index:]:
+							cursor.addBindValue(param[i])
+							i+=1
+							index = query.index('?', index) + 1
+						t = cursor.exec_()
+
+						if not t:
+							# fix_print_with_import
+							print(cursor.lastError().text())
+					
+				else:
+					t = cursor.exec_(query)
+					if t:
+						rec = cursor.record()
+						result = []
+						while next(cursor)():
+							row = []
+							for i in range(rec.count()):
+								row.append(cursor.value(i))
+							result.append(row)
+					else:
+						# fix_print_with_import
+						print(cursor.lastError().text())
+				
+				cursor.clear()
+				connection.close()
+			
+		except Exception as e:
+			self.lgr.error('path={0}, error={1}'.format(database.filepath, str(e)))
 		return result
 		
 	def addLayer(self, item=None):
@@ -1687,9 +1858,11 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		for item in addItems:
 			layer = QgsVectorLayer(item.normalString, item.normalString.split('/')[-1].split('.')[0], 'ogr')
 			if not layer.isValid():
-				print self.dictionary.getWord(self.lang,"Layer failed to load!"), item.normalString
+				# fix_print_with_import
+				print(self.dictionary.getWord(self.lang,"Layer failed to load!"), item.normalString)
+				QMessageBox.critical(None, self.dictionary.getWord(self.lang,"Layer failed to load!"), item.normalString)
 				continue
-			QgsMapLayerRegistry.instance().addMapLayer(layer)
+			QgsProject.instance().addMapLayer(layer)
 
 	def closeEvent(self, event):
 		#close event handler of the main window
@@ -1708,7 +1881,6 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 		#No:  Do nothing.
 		
 	def activateItem(self):
-			
 		if self.inProcess:
 			return
 		self.inProcess = True
@@ -1719,12 +1891,12 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				if item.itemType == OBJECTITEM:
 					if self.layoutDialog and not self.layoutDialog.closed:
 						self.layoutDialog.object = item.extraInformation
-					
-			allLayers = self.iface.mapCanvas().layers()
+			
+			allLayers = self.iface.mapCanvas().layers()	
 			for layer in allLayers:
 				selectFeatures = []
 				for feature in layer.getFeatures():
-					idx = layer.fieldNameIndex('INVID')
+					idx = layer.dataProvider().fieldNameIndex('INVID')
 					for item in selectedTreeItems:
 						if item.itemType == OBJECTITEM and item.extraInformation.invid == feature.attributes()[idx]:
 							selectFeatures.append(feature.id())
@@ -1736,8 +1908,9 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				elif int(self.qgisVersion.split('.')[0]) >= 2 and int(self.qgisVersion.split('.')[1]) >= 16:
 					layer.selectByIds(selectFeatures)
 					
-		except Exception,e:
-			print e
+		except Exception as e:
+			# fix_print_with_import
+			print(e)
 		self.inProcess = False
 			
 	def layerActivationChanged(self, layer):
@@ -1771,6 +1944,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 						try:
 							db = self.dbs[database_paths.index(feature["database"])]
 							#search and expand for top level item with database alias as text
+
 							databaseItem = self.treeWidget.findItems(db.name, Qt.MatchExactly)[0]
 							if databaseItem.childCount() == 0:
 								self.buildTree(databaseItem)
@@ -1793,8 +1967,9 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 							#search and select item
 							selectItem = searchItem(objectTypeItem, feature["invid"])
 							selectTreeItems.append(selectItem)
-						except Exception,e:
-							print str(e)
+						except Exception as e:
+							# fix_print_with_import
+							print(str(e))
 							continue
 				
 				except KeyError:
@@ -1820,16 +1995,20 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 			QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
 			self.GeODin = GeODinFromObject(self, item.extraInformation)
 			QApplication.restoreOverrideCursor()
-		except Exception,e:
-			print str(e)
+		except Exception as e:
+			print(str(e))
 			QApplication.restoreOverrideCursor()
 			
 	def readGeodinini(self):
-		geodin_path = self.getGeodinPath()
+		#geodin_path = self.getGeodinPath()
 		geodin_ini = ''
-		for file in os.listdir(geodin_path):
+		
+		if not os.path.exists(self.geodin_dir):
+			return
+		
+		for file in os.listdir(self.geodin_dir):
 			if file.lower() == 'geodin.ini':
-				geodin_ini = os.path.join(geodin_path, file)
+				geodin_ini = os.path.join(self.geodin_dir, file)
 				break
 		
 		if geodin_ini == '':
@@ -1850,21 +2029,32 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				line = line.replace('[','').replace(']','')
 				section = line.lower()
 				inidict[section] = {}
-			elif len(line):
-				
+			elif len(line) and '=' in line:
 				inidict[section][line[0:line.index('=')]] = line[line.index('=')+1:]
 
-		if 'database' in inidict.keys():
-			for opt in inidict['database'].keys():
+		print ('set to true')
+		if 'database' in list(inidict.keys()):
+			print ('set to true 0')
+			print (*list(inidict.keys()))
+			print (*list(inidict['database'].keys()))
+			print (*list(inidict['system'].keys()))
+			print (*list(inidict['layoutfolders'].keys()))
+			print (*list(inidict['help'].keys()))
+			for opt in list(inidict['database'].keys()):
+				print ('set to true 1')
 				if opt.lower() == 'useradodatabases':
+					print ('set to true 2')
 					if inidict['database'][opt].lower() == 'true':
+						print ('set to true 3')
 						self.UserADODataBases = True
 					break
 					
-		if not 'systemdatabases' in inidict.keys():
+		if not 'systemdatabases' in list(inidict.keys()):
+			print ('ended prematurely')
 			return
 
-		for db in inidict['systemdatabases'].keys():
+		for db in list(inidict['systemdatabases'].keys()):
+			print ('db in systemdatabases')
 			database = Database()
 			database.system = True
 			database.name = inidict['systemdatabases'][db]
@@ -1876,7 +2066,7 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				continue
 			
 			
-			for o in inidict[inidict['systemdatabases'][db].lower()].keys():
+			for o in list(inidict[inidict['systemdatabases'][db].lower()].keys()):
 
 				if (o.lower() == 'adoconnection'):
 					options, path =  self.getConnectionOptions(inidict[inidict['systemdatabases'][db].lower()][o], 'ADOConnection', inidict['systemdatabases'][db])
@@ -1887,14 +2077,19 @@ class GeODinQGISMain(QDockWidget, Ui_GeODinQGISMain):
 				elif (o.lower() == 'name'):
 					database.name = inidict[inidict['systemdatabases'][db].lower()][o]
 			
+			if not self.geodin_dir.endswith('/') and not self.geodin_dir.endswith('\\'):
+				self.geodin_dir = self.geodin_dir + '/'
+			
+			
 			#print database, options
-			database.filepath = path.replace("$%GEODINROOT$",geodin_path).replace("C:/Program Files (x86)/GeODin/","C:/ProgramData/Fugro/GeODin/").replace("\\","/")
+			database.filepath = path.replace("$%GEODINROOT$",self.geodin_dir).replace("C:/Program Files (x86)/GeODin/","C:/ProgramData/Fugro/GeODin/").replace("\\","/")
 
 			database.options = options
 			database.owner = owner
-			if path.lower() not in [db.filepath.lower() for db in self.dbs]:
+			
+			if database.filepath.lower() not in [db.filepath.lower() for db in self.dbs]:
 				self.newTopLevelItem(database)
 			else:
 				for db in self.dbs:
-					if path.lower() == db.filepath.lower():
+					if database.filepath.lower() == db.filepath.lower():
 						db.system = True

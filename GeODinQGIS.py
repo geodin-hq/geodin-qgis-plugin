@@ -7,8 +7,8 @@ This plugin connects GeODin with QGIS
 						  -------------------
 	begin                : 2015-02-16
 	git sha              : $Format:%H$
-	copyright            : (C) 2015 by Fugro Consult GmbH
-	email                : www.fugro.de
+	copyright            : (C) 2021 by Fugro Germany Land GmbH
+	email                : www.fugro.com
 ***************************************************************************/
 
 /***************************************************************************
@@ -20,20 +20,27 @@ This plugin connects GeODin with QGIS
 *                                                                         *
 ***************************************************************************/
 """
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from __future__ import print_function
+from __future__ import absolute_import
+from builtins import str
+from builtins import range
+from builtins import object
+from qgis.PyQt.QtCore import QObject, Qt
+from qgis.PyQt.QtWidgets import QDialog, QAction, QMenu, QToolButton, QMessageBox
+from qgis.PyQt.QtGui import QIcon
 from qgis.core import *
 from qgis.gui import *
 from win32api import GetSystemMetrics
 import sys
 
-import resources_rc, os.path
+from .resources_rc import *
+import os.path
 
-from GeODinQGIS_Main import GeODinQGISMain
-from GeODinQGIS_Settings import Settings
-from ui_Files.ui_GeODinQGIS_Help import Ui_HelpDialog
-from pythonmodules.helpFunction import *
-from extras.layout import ImageLayout
+from .GeODinQGIS_Main import GeODinQGISMain
+from .GeODinQGIS_Settings import Settings
+from .ui_Files.ui_GeODinQGIS_Help import Ui_HelpDialog
+from .pythonmodules.helpFunction import Database, Project, Object
+from .extras.layout import ImageLayout
 
 class GeODinQGIS:
 
@@ -47,7 +54,7 @@ class GeODinQGIS:
 
 		#initialize plugin directory
 		self.plugin_dir = os.path.dirname(__file__)
-		
+
 		# create language and dictionary
 		self.language = self.main.lang
 		self.dictionary = self.main.dictionary
@@ -57,21 +64,21 @@ class GeODinQGIS:
 			return
 		# Create actionmain that will start plugin configuration
 		self.actionmain = QAction(QIcon(":/plugins/GeODinQGIS/icons/logo.png"), u"GeODin", self.iface.mainWindow())
-		
+
 		# connect the actionmain to the run method
-		QObject.connect(self.actionmain, SIGNAL("triggered()"), self.openMain)
-		
+		self.actionmain.triggered.connect(self.openMain)
+
 		# Add Plugin to toolbar
 		self.toolBar = self.iface.addToolBar("GeODin")
 		self.toolBar.addAction(self.actionmain)
-		
+
 		# manage language icons
 		lang_en = QAction(QIcon(":/plugins/GeODinQGIS/icons/i_371F.png"), u"English", self.toolBar)
 		lang_de = QAction(QIcon(":/plugins/GeODinQGIS/icons/i_370F.png"), u"Deutsch", self.toolBar)
 		lang_fr = QAction(QIcon(":/plugins/GeODinQGIS/icons/i_372F.png"), u"Fran\u00E7ais", self.toolBar)
 		lang_ru = QAction(QIcon(":/plugins/GeODinQGIS/icons/i_373F.png"), u"русский", self.toolBar)
 		lang_po = QAction(QIcon(":/plugins/GeODinQGIS/icons/flag_poland.png"), u"Polski", self.toolBar)
-		
+
 		# manage menu to set operating language
 		self.languageMenu = QMenu(self.dictionary.getWord(self.language,"Language"), self.toolBar )
 		self.languageMenu.setIcon(self.main.activeIcon)
@@ -80,19 +87,20 @@ class GeODinQGIS:
 		self.languageMenu.addAction( lang_fr )
 		self.languageMenu.addAction( lang_ru )
 		self.languageMenu.addAction( lang_po )
-		
+
 		# french and russian are currently not available
 		lang_fr.setEnabled(False)
 		lang_ru.setEnabled(False)
 		lang_po.setEnabled(False)
-		
+
 		# enable language change, connect to functions
-		QObject.connect(lang_en, SIGNAL("triggered()"), lambda lan="en": self.changeLanguage(lan))
-		QObject.connect(lang_de, SIGNAL("triggered()"), lambda lan="de": self.changeLanguage(lan))
-		QObject.connect(lang_fr, SIGNAL("triggered()"), lambda lan="fr": self.changeLanguage(lan))
-		QObject.connect(lang_ru, SIGNAL("triggered()"), lambda lan="ru": self.changeLanguage(lan))
-		QObject.connect(lang_po, SIGNAL("triggered()"), lambda lan="po": self.changeLanguage(lan))
-		
+		# lan is not properly assigned it's value therefore we call self.changelanguage with "de"/"en" usw. instead of lan
+		lang_en.triggered.connect(lambda lan="en": self.changeLanguage("en"))
+		lang_de.triggered.connect(lambda lan="de": self.changeLanguage("de"))
+		lang_fr.triggered.connect(lambda lan="fr": self.changeLanguage("fr"))
+		lang_ru.triggered.connect(lambda lan="ru": self.changeLanguage("ru"))
+		lang_po.triggered.connect(lambda lan="po": self.changeLanguage("po"))
+
 		# add settings menu to manage plugin settings and operating language
 		self.preferenceMenu = QMenu(self.toolBar)
 		self.preferenceMenu.addMenu(self.languageMenu)
@@ -102,29 +110,30 @@ class GeODinQGIS:
 		self.preferenceButton.setMenu(self.preferenceMenu)
 		self.preferenceButton.setPopupMode( QToolButton.InstantPopup)
 		self.toolBar.addWidget(self.preferenceButton)
-		
+
 		# add layer refresh button
 		self.refreshButton = QAction(QIcon(":/plugins/GeODinQGIS/icons/system_refresh.png"), u"Refresh", self.iface.mainWindow())
 		self.refreshButton.setToolTip(self.dictionary.getWord(self.language,"Refresh"))
-		QObject.connect(self.refreshButton, SIGNAL("triggered()"), self.refresh)
+		self.refreshButton.triggered.connect(self.refresh)
 		self.toolBar.addAction(self.refreshButton)
-		
+
 		# add plugin documentation button
 		self.helpButton = QAction(QIcon(":/plugins/GeODinQGIS/icons/system_help.png"), u"GeODinQGIS Help", self.iface.mainWindow())
 		self.helpButton.setToolTip(self.dictionary.getWord(self.language,"GeODinQGIS Help"))
-		QObject.connect(self.helpButton, SIGNAL("triggered()"), self.openHelp)
+		self.helpButton.triggered.connect(self.openHelp)
 		self.toolBar.addAction(self.helpButton)
-		
+
 		# add settings button
 		self.settingsButton = QAction(QIcon(""), self.dictionary.getWord(self.language,"Settings"), self.toolBar)
 		self.settingsButton.setIcon(QIcon(":/plugins/GeODinQGIS/icons/settings.png"))
 		self.preferenceMenu.addAction(self.settingsButton)
-		QObject.connect(self.settingsButton, SIGNAL("triggered()"), self.openSettings)
-	
+		self.settingsButton.triggered.connect(self.openSettings)
+
 	def openSettings(self):
 		# open extra file "GeODinQGIS_Settings" and execute class "Settings" with variables from "GeODinQGIS_Main"
 		settings = Settings(self.main)
 		self.main.tmpDirectory = settings.le_dir.text()
+		self.main.geodin_dir = settings.le_geodin.text()
 
 	def unload(self):
 		# unload plugin
@@ -135,27 +144,28 @@ class GeODinQGIS:
 
 			# remove tool bar
 			del self.toolBar
-			
+
 		self.main = None
+		
 		self.plugin_dir = None
 		self.language = None
 
 	def openMain(self):
 		# show main functions in a right docked widget
 		self.iface.addDockWidget(Qt.RightDockWidgetArea, self.main)
-		self.main.getBuild()
+		#self.main.getBuild()
 		self.main.checkVersion()
-		
+
 	def openHelp(self):
 		if self.language == 'en':
-			path = self.plugin_dir + "/help/help_en.pdf"
+			path = self.plugin_dir + "/help/help_en.htm"
 		elif self.language == 'de':
-			path = self.plugin_dir + "/help/help_de.pdf"
-		
+			path = self.plugin_dir + "/help/help_de.htm"
+
 		self.helpDialog = ImageLayout(path, "GeODinQGIS Help")
 
 
-		
+
 	def refresh(self):
 		#Warning message box with two buttons
 		msgBox = QMessageBox()
@@ -165,6 +175,7 @@ class GeODinQGIS:
 		msgBox.setWindowTitle('Warning')
 		canvas = self.iface.mapCanvas()
 		allLayers = canvas.layers()
+
 		for layerid, layer in enumerate(allLayers):
 			databases = []
 			try:
@@ -174,6 +185,7 @@ class GeODinQGIS:
 					if not database in databases:
 						databases.append(database)
 					else:
+
 						database = databases[databases.index(database)]
 					project = Project(feature["prjname"], database)
 					project.id = feature["prjid"]
@@ -191,13 +203,15 @@ class GeODinQGIS:
 					for i in range(10, len(feature.attributes())):
 						object.data.append(feature.attributes()[i])
 					project.objects.append(object)
-			except Exception,e :
-				print str(e)
-			
+			except Exception as e :
+				# fix_print_with_import
+				print(str(e))
+
 			changes = False
 			features = []
 			for database in databases:
-				
+				# fix_print_with_import
+				print (database.options)
 				for project in database.projects:
 					query = """SELECT GEODIN_LOC_LOCREG.INVID, GEODIN_LOC_LOCREG.SHORTNAME, GEODIN_LOC_LOCREG.LONGNAME, GEODIN_LOC_LOCREG.XCOORD, GEODIN_LOC_LOCREG.YCOORD, GEODIN_SYS_LOCTYPES.Gen_name
 								FROM GEODIN_LOC_LOCREG INNER JOIN GEODIN_SYS_LOCTYPES ON GEODIN_LOC_LOCREG.LOCTYPE = GEODIN_SYS_LOCTYPES.GEN_DESC
@@ -228,7 +242,7 @@ class GeODinQGIS:
 					provider.addFeatures(features)
 					layer.commitChanges()
 		canvas.refresh()
-		
+
 	def changeLanguage(self, lan):
 		self.main.changeLang(lan)
 		self.language = lan
@@ -252,4 +266,4 @@ class HelpObject(QDialog):
 
 	def load(self, page):
 		self.ui.webView.load(QUrl(page))#"file:///C:/Users/.../.qgis2/python/plugins/GeODinQGIS/help/index.html?language=en"))
-		
+

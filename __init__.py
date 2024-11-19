@@ -6,8 +6,8 @@
  This plugin connects GeODin with QGIS
                              -------------------
         begin                : 2015-02-16
-        copyright            : (C) 2015 by Fugro Consult GmbH
-        email                : www.fugro.de
+        copyright            : (C) 2021 by Fugro Germany Land GmbH
+        email                : www.fugro.com
         git sha              : $Format:%H$
  ***************************************************************************/
 

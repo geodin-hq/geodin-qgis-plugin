@@ -1,3 +1,6 @@
+from __future__ import print_function
+from builtins import object
+
 class ConfigParser:
 
 	def __init__(self):
@@ -26,7 +29,7 @@ class ConfigParser:
 				self.set(section, line.split('=')[0], line.split('=')[1])
 
 	def get(self, section, key):
-		return self.__dict[section][key]
+		return list(self.__dict[section].keys())
 
 	def options(self, section):
 		return self.__dict[section].keys()
@@ -35,12 +38,13 @@ class ConfigParser:
 		del self.__dict[section][key]
 
 	def write(self, configFile):
-		for section in self.__dict.keys():
+		for section in list(self.__dict.keys()):
 			configFile.write("["+section+"]")
-			for key in section.keys():
+			for key in list(section.keys()):
 				configFile.write(key+"="+self.get(section, key))
 
 if __name__ == "__main__":
 	config = ConfigParser()
 	config.read("C:\\Users\\phielerm\\.qgis2\\python\\plugins\\GeODinQGIS\\config.cfg")
-	print config.options("Options")
+	# fix_print_with_import
+	print (config.options("Options"))

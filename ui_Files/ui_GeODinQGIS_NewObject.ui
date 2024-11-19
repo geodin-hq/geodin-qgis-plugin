@@ -80,7 +80,7 @@
     </attribute>
     <column>
      <property name="text">
-      <string>Short name</string>
+      <string>Name</string>
      </property>
     </column>
     <column>
@@ -210,7 +210,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>Short name</string>
+     <string>Name</string>
     </property>
    </widget>
    <widget class="QLabel" name="lbl_east">

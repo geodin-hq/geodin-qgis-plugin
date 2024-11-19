@@ -1,16 +1,20 @@
 # -*- coding: utf-8 -*-
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from PyQt4.QtWebKit import *
+from __future__ import print_function
+from builtins import str
+#qgis.PyQt takes the PyQt version installed with OSGeo4W instead of a fixed one.
+from qgis.PyQt.QtCore import *
+from qgis.PyQt.QtGui import *
+from qgis.PyQt.QtWebKit import *
+from qgis.PyQt.QtWebKitWidgets import *
+from qgis.PyQt.QtWidgets import *
 from win32api import GetSystemMetrics
-from PIL import Image
 
 import win32com.client
 import time
 import json, os
 import datetime
-import md5
+import hashlib
 import sys
 
 
@@ -82,7 +86,8 @@ class DisplayLayout(QDialog):
 
 		buttonBox.button(QDialogButtonBox.Apply).clicked.connect(self.showLayout)
 		buttonBox.button(QDialogButtonBox.Close).clicked.connect(self.cancel)
-		QObject.connect(self.layoutFoldersList, SIGNAL("itemClicked (QTableWidgetItem*)"), self.getLayouts)
+		#QObject.connect(self.layoutFoldersList, SIGNAL("itemClicked (QTableWidgetItem*)"), self.getLayouts)
+		self.layoutFoldersList.itemClicked.connect(self.getLayouts)
 		addLabel.mouseReleaseEvent = self.newFolder
 		removeLabel.mouseReleaseEvent = self.delFolder
 		
@@ -106,10 +111,11 @@ class DisplayLayout(QDialog):
 		self.closed = True
 		
 	def showLayout(self):
-		QApplication.setOverrideCursor(Qt.WaitCursor)
+		#QApplication.setOverrideCursor(Qt.WaitCursor)
 		selected = self.layoutsList.selectedItems()
 		
 		if not len(self.folderpath) or not len(selected):
+			print ('error')
 			return
 	
 		now = datetime.datetime.now()
@@ -125,15 +131,16 @@ class DisplayLayout(QDialog):
 		#print "Licence Info: ", info
 		
 		licence = info[1].split(': ')[1]
-		m = md5.new()
-		m.update(a+'-'+licence)
+		m = hashlib.md5()
+		m.update((a+'-'+licence).encode())
 		new_hash = m.hexdigest()
 		
 		#layout = self.folderpath + '\\' + str(selected[0].text())
 		layout = self.folderpath + '\\' + selected[0].text()
 		database = self.object.parent.parent
 		invid = self.object.invid
-		image = 41
+		image = 2
+		#image = 41
 		#image = 12
 		
 		Params = "[Params]\n"
@@ -159,11 +166,15 @@ class DisplayLayout(QDialog):
 		pic = GeODin.ProduceData(params)
 
 		if GeODin.ExceptionValue != 0: 
-			print "Error ID: "+ str(GeODin.ExceptionValue)
-			print "Error Message: "+GeODin.ExceptionMsg.encode('utf-8')
+			# fix_print_with_import
+			print ("Error ID: "+ str(GeODin.ExceptionValue))
+			print ("Error Message: "+GeODin.ExceptionMsg.encode('utf-8'))
 			
-		f = open(self.tmp + "\\out.pdf", 'wb')
-		if isinstance(pic[0], unicode):
+		f = open(self.tmp + "\\out.jpg", 'wb')
+		for i in range(len(pic)):
+			print (type(pic[i]))
+			print (i)
+		if isinstance(pic[0], str):
 			f.write("<!DOCTYPE html><html><head><meta charset='utf-8'/></head><body>\r\n" + pic[0].replace("\r\n","</br>").encode('utf-8')+"\r\n</body></html>")
 		else:
 			f.write(pic[0])
@@ -172,7 +183,7 @@ class DisplayLayout(QDialog):
 
 		GeODin = None
 		
-		self.layoutDialog = ImageLayout(self.tmp + "/out.pdf", selected[0].text())
+		self.layoutDialog = ImageLayout(self.tmp + "/out.jpg", selected[0].text())
 		
 		
 	def cancel(self):
@@ -251,6 +262,7 @@ class ImageLayout(QDialog):
 		self.horizontalLayout.setMargin(0)
 
 		self.webView = QWebView(self)
+		self.webView.settings().setAttribute(QWebSettings.PluginsEnabled, True)
 		sizePolicy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 		sizePolicy.setHorizontalStretch(0)
 		sizePolicy.setVerticalStretch(0)
@@ -258,16 +270,20 @@ class ImageLayout(QDialog):
 		self.webView.setSizePolicy(sizePolicy)
 
 		self.horizontalLayout.addWidget(self.webView)
-		
 
-		self.webView.settings().setAttribute(QWebSettings.PluginsEnabled, True)
-		self.webView.show()		
-		self.webView.load(QUrl(path)) # Change path to actual file.
+		#WebView is not a viable option for displaying PDFs
+		#self.webView.settings().setAttribute(QWebSettings.pdfViewerEnabled, True)
+
+		print (path)
+		self.webView.load(QUrl(r"file:///" + path)) # Change path to actual file.
+		self.webView.loadFinished.connect(lambda: self.webView.show())
+		#self.webView.show()
 
 		QApplication.restoreOverrideCursor()
 		self.exec_()
 		#self.show()
-		
+
+
 	def closeEvent(self, evnt):
 		self.webView.close()
 		self.close()

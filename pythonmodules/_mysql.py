@@ -1,7 +1,7 @@
 
 # Copyright (C) 2012-2013 SINA, All rights reserved.
 
-from _mysql_exceptions import *
+from ._mysql_exceptions import *
 
 """An proxy for the MySQL C API
 Translate the _mysql C API call into restfull call
@@ -9,7 +9,7 @@ Translate the _mysql C API call into restfull call
 
 import types
 import pickle
-import urllib2
+from urllib.request import urlopen
 
 #from release import __version__, version_info
 
@@ -144,7 +144,7 @@ class connection(object):
         }
         logger.debug('REQ: %s', req)
         payload = pickle.dumps(req)
-        body = urllib2.urlopen(_SAE_MYSQL_API_BACKEND, payload).read()
+        body = urlopen(_SAE_MYSQL_API_BACKEND, payload).read()
         rep = pickle.loads(body)
         logger.debug('REP: %s', rep)
         if rep.get('sql_exception'):

@@ -1,8 +1,16 @@
 # -*- coding: utf-8 -*-
-
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from _winreg import *
+from __future__ import print_function
+from future import standard_library
+standard_library.install_aliases()
+from builtins import map
+from builtins import str
+from builtins import next
+from builtins import range
+from builtins import object
+from qgis.PyQt.QtCore import *
+from qgis.PyQt.QtGui import *
+from qgis.PyQt.QtWidgets import *
+from winreg import *
 import json, os, codecs
 
 
@@ -28,8 +36,8 @@ def locreg(column):
 def unique(seq):
 	# not order preserving
 	set = {}
-	map(set.__setitem__, seq, [])
-	return set.keys()
+	list(map(set.__setitem__, seq, []))
+	return list(set.keys())
 
 def firstLastIndices(seq, item):
 	ind = [i for i, x in enumerate(seq) if x == item]
@@ -52,7 +60,7 @@ def searchItem(parentItem, item_name):
 			return parentItem.child(i)
 	return None
 
-class Dict:
+class Dict (object):
 
 	def __init__(self, path):
 		self.__path = path
@@ -71,12 +79,12 @@ class Dict:
 		return language[word]
 		
 	def getLanguages(self):
-		return self.__dict.keys()
+		return list(self.__dict.keys())
 		
 	def getDictionary(self):
 		return self.__dict
 
-class DatabaseObjects:
+class DatabaseObjects (object):
 
 	def __init__(self, name=None):
 		self.name = name
@@ -132,7 +140,8 @@ class Database(DatabaseObjects):
 		try:
 			return self.options[key]
 		except KeyError:
-			print key + ' not found in options.'
+            # fix_print_with_import
+			print (key + ' not found in options.')
 
 	def getProject(self, prjid):
 		for project in self.projects:
@@ -236,10 +245,10 @@ class UserChooser(QDialog):
 		self.user = ''
 		self.fillCombobox()
 		
-		QObject.connect(self.buttonBox, SIGNAL("accepted()"), self.accept)
-		QObject.connect(self.buttonBox, SIGNAL("rejected()"), self.reject)		
+		self.buttonBox.accepted.connect(self.accept)
+		self.buttonBox.rejected.connect(self.reject)	
 		self.buttonBox.button(QDialogButtonBox.Ok).clicked.connect(self.ok)
-		self.connect(self.userBox, SIGNAL("activated (const QString&)"), self.newItem)
+		self.userBox.activated .connect(self.newItem)
 		self.show()
 		self.exec_()
 
@@ -405,16 +414,16 @@ class Info(QDialog):
 		font = QFont()
 		font.setPointSize(16)
 		lbl_title.setFont(font)		
-		lbl_title.setText("GeODin QGIS 1.1.5")
+		lbl_title.setText("GeODin QGIS 1.2")
 		
 		# GeODin Icon
 		i_geodin = QLabel(self)
-		i_geodin.setPixmap(QPixmap(":\plugins\GeODinQGIS\icons\logo.png").scaled(40,40))
+		i_geodin.setPixmap(QPixmap(r":\plugins\GeODinQGIS\icons\logo.png").scaled(40,40))
 
 
 		# Fugro Icon
 		i_fugro = QLabel(self)
-		i_fugro.setPixmap(QPixmap(":\plugins\GeODinQGIS\icons\fugro.png").scaled(70,70))
+		i_fugro.setPixmap(QPixmap(r":\plugins\GeODinQGIS\icons\fugro.png").scaled(70,70))
 
 		# enter registry and get GeODin build number
 		key = OpenKey(HKEY_CURRENT_USER, r"Software\GeODin-System\System", 0, KEY_READ)
@@ -470,7 +479,7 @@ class Info(QDialog):
 	def ok(self):
 		self.accept()
 		
-class ConfigParser:
+class ConfigParser (object):
 
 	def __init__(self):
 		self.__path = ""
@@ -508,20 +517,20 @@ class ConfigParser:
 			return False
 
 	def options(self, section):
-		return self.__dict[section].keys()
+		return list(self.__dict[section].keys())
 
 	def remove_option(self, section, key):
 		del self.__dict[section][key]
 
 	def write(self, configFile):
-		for section in self.__dict.keys():
+		for section in list(self.__dict.keys()):
 			configFile.write("["+section+"]\n")
-			for key in self.__dict[section].keys():
+			for key in list(self.__dict[section].keys()):
 #				print key, self.get(section, key)
 				configFile.write(key+"="+self.get(section, key)+"\n")
 			
 	def sections(self):
-		return self.__dict.keys()
+		return list(self.__dict.keys())
 		
 	def items(self, section):
 		array = []

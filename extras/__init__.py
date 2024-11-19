@@ -1,4 +1,4 @@
 try:
-	import layout
+	from . import layout
 except:
 	pass

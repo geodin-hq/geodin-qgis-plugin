@@ -1,13 +1,18 @@
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from __future__ import print_function
+from __future__ import absolute_import
+from builtins import str
+from builtins import range
+from qgis.PyQt.QtCore import *
+from qgis.PyQt.QtGui import *
+from qgis.PyQt.QtWidgets import *
 from qgis.core import *
-from qgis.gui import *
-from pythonmodules.pypyodbc import *
-from pythonmodules.helpFunction import *
+from qgis.utils import *
+from .pythonmodules.pypyodbc import *
+from .pythonmodules.helpFunction import *
 import os, sys, time, logging, win32com.client
-from GeODinQGIS_Settings import Settings
-from GeODinQGIS_DragShp import DragShp
-from ui_Files.ui_GeODinQGIS_NewObject import Ui_NewObject
+from .GeODinQGIS_Settings import Settings
+from .GeODinQGIS_DragShp import DragShp
+from .ui_Files.ui_GeODinQGIS_NewObject import Ui_NewObject
 
 class NewObject(QDockWidget, Ui_NewObject):
 
@@ -51,9 +56,9 @@ class NewObject(QDockWidget, Ui_NewObject):
 		self.canvas = self.iface.mapCanvas()
 		
 		# define button signals for vector file management
-		QObject.connect(self.btn_createshp, SIGNAL("clicked()"), self.createVector)
-		QObject.connect(self.btn_openshp, SIGNAL("clicked()"), self.openVector)
-		QObject.connect(self.btn_dragshp, SIGNAL("clicked()"), self.dragVector)
+		self.btn_createshp.clicked.connect(self.createVector)
+		self.btn_openshp.clicked.connect(self.openVector)
+		self.btn_dragshp.clicked.connect(self.dragVector)
 		
 		# set behavior to load an existing vector file from layer registry to coordinate table
 		self.open = False
@@ -66,13 +71,14 @@ class NewObject(QDockWidget, Ui_NewObject):
 		self.cmb_short.setEnabled(True)
 		
 		# connect buttons to their functions
-		QObject.connect(self.btn_geodin, SIGNAL("clicked()"),self.geodin)
-		QObject.connect(self.btn_close, SIGNAL("clicked()"),self, SLOT("close()"))
-		QObject.connect(self.btn_del, SIGNAL("clicked()"), self.delete)
-		QObject.connect(self.btn_desel, SIGNAL("clicked()"), self.deselect)
-		QObject.connect(self.cmb_short, SIGNAL("currentIndexChanged (const QString&)"), self.shortNameChoose)
-		QObject.connect(self.cmb_east, SIGNAL("currentIndexChanged (const QString&)"), self.eastingChoose)
-		QObject.connect(self.cmb_north, SIGNAL("currentIndexChanged (const QString&)"), self.northingChoose)
+		self.btn_geodin.clicked.connect(self.geodin)
+		self.btn_close.clicked.connect(self.close)
+		#QObject.connect(self.btn_close, SIGNAL("clicked()"),self, SLOT("close()"))
+		self.btn_del.clicked.connect(self.delete)
+		self.btn_desel.clicked.connect(self.deselect)
+		self.cmb_short.currentIndexChanged .connect(self.shortNameChoose)
+		self.cmb_east.currentIndexChanged .connect(self.eastingChoose)
+		self.cmb_north.currentIndexChanged .connect(self.northingChoose)
 		
 		# manage button icons		
 		self.btn_createshp.setIcon(QIcon(":\plugins\GeODinQGIS\icons\point_create_n.png"))
@@ -296,10 +302,12 @@ class NewObject(QDockWidget, Ui_NewObject):
 		self.open = True
 		
 		# get path of vector file
-		self.openName = QFileDialog.getOpenFileName(self, "Load Vector Layer",".", "Shape (*.shp)")
-		
+		#[0] so only the first String is considered since QFileDialog.getOpenFileName now returns a tuple
+		self.openName = QFileDialog.getOpenFileName(self, "Load Vector Layer",".", "Shape (*.shp)")[0]
+		#returns a Tuple not a String anymore
 		# if open dialog has been aborted
 		if not self.openName:
+			print ('dialog aborted')
 			return
 		
 		# take file path and load vector file
@@ -315,14 +323,15 @@ class NewObject(QDockWidget, Ui_NewObject):
 		
 		# vector file must be a point shape
 		# important for vector drag from layer list
-		if not self.v_points.wkbType() == QGis.WKBPoint:
+		#code 1 stands for QGis.WKBPoint
+		if not self.v_points.wkbType() == 1:
 			QMessageBox.information(None,self.lang_dict.getWord(self.lang,"Wrong Datatype"),self.lang_dict.getWord(self.lang,"You must load a Point Shape"))
 			return
 		
 		# if vector file has been loaded from file system
 		if self.open == True:
 			# add file to map canvas
-			QgsMapLayerRegistry.instance().addMapLayer(self.v_points)
+			QgsProject.instance().addMapLayer(self.v_points)
 			self.addVector()
 			self.open = False
 		
@@ -335,10 +344,10 @@ class NewObject(QDockWidget, Ui_NewObject):
 	# get reference from layer list to loaded vector layer
 	# build coordinate table
 		# map over layer list
-		layers = QgsMapLayerRegistry.instance().mapLayers()
+		layers = QgsProject.instance().mapLayers()
 		
 		# split into layer ID and layer instance
-		for ID, layer in layers.iteritems():
+		for ID, layer in layers.items():
 			source = layer.source()
 			
 			# if paths of vector layer equal each other
@@ -359,7 +368,7 @@ class NewObject(QDockWidget, Ui_NewObject):
 		self.cmb_east.addItem("")	
 		self.cmb_north.addItem("")	
 		
-		for field in self.v_points.pendingFields():
+		for field in self.v_points.fields():
 			self.cmb_short.addItem(field.name())
 			self.cmb_east.addItem(field.name())
 			self.cmb_north.addItem(field.name())			
@@ -398,19 +407,30 @@ class NewObject(QDockWidget, Ui_NewObject):
 		tmplayer.commitChanges()
 		
 		# get file name to be saved
-		outName = QFileDialog.getSaveFileName(self, "Save Vector Layer",self.saveFileFolder+self.display_name.replace(" ", "_"), "Shape (*.shp)")
+		outName, __ = QFileDialog.getSaveFileName(self, "Save Vector Layer",self.saveFileFolder+self.display_name.replace(" ", "_"), "Shape (*.shp)")
 		if not outName:
 			return
 		self.saveFileFolder = os.path.dirname(outName)+"/"
 		
 		# declare options for temporary shape layer
-		QgsVectorFileWriter.writeAsVectorFormat(tmplayer, outName, "CP1250", None, "ESRI Shapefile")
+
+		save_options = QgsVectorFileWriter.SaveVectorOptions()
+		transform_context = QgsProject.instance().transformContext()
+		save_options.fileEncoding = 'CP1250'
+		save_options.driverName = 'ESRI Shapefile'
+
+		if Qgis.QGIS_VERSION_INT >= 32000:
+			QgsVectorFileWriter.writeAsVectorFormatV3(tmplayer, outName, transform_context, save_options)
+		else :
+			QgsVectorFileWriter.writeAsVectorFormatV2(tmplayer, outName, transform_context, save_options)
+
+		#QgsVectorFileWriter.writeAsVectorFormat(tmplayer, outName, "CP1250", layer.crs(), "ESRI Shapefile")
 		
 		# turn temporary layer into QGIS vector layer
 		self.v_points = QgsVectorLayer(outName, self.display_name, "ogr")
 		
 		# add vector file to QGIS layer registry
-		QgsMapLayerRegistry.instance().addMapLayer(self.v_points)
+		QgsProject.instance().addMapLayer(self.v_points)
 		
 		# find layer ID's of all layer in layer registry
 		ids = self.root.findLayerIds()
@@ -452,7 +472,7 @@ class NewObject(QDockWidget, Ui_NewObject):
 		
 		# touch vector file and get feature information
 		features = self.v_points.getFeatures()
-		fields = self.v_points.pendingFields()
+		fields = self.v_points.fields()
 
 		# map over features (row in attribute table, object/point in canvas)
 		for f in features:
@@ -549,11 +569,13 @@ class NewObject(QDockWidget, Ui_NewObject):
 		#Did the user press the Enter key?
 		if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter or event.key() == Qt.Key_Tab: #QtCore.Qt.Key_Escape is a value that equates to what the operating system passes to python from the keyboard when the escape key is pressed.
 		#Yes: Close the window
-			print "key pressed"
+			# fix_print_with_import
+			print("key pressed")
 		#No:  Do nothing.
 		
 	def clicked(self, currentRow):
-		print "clicked"
+		# fix_print_with_import
+		print("clicked")
 		# write list with indices of all selected rows
 		line = self.coord_tab.selectionModel().selectedRows()
 		
@@ -643,7 +665,8 @@ class NewObject(QDockWidget, Ui_NewObject):
 				Expand = "\nExpand=true"
 				
 				params = Params + Database + self.alias + Username + Password + Objecttype + Parentnode + Object_ID + self.proj_ID + Expand
-				print params
+				# fix_print_with_import
+				print(params)
 				#self.lgr.warning(params)
 				# execute method
 				GeODin.SelectObject(params)
@@ -659,7 +682,8 @@ class NewObject(QDockWidget, Ui_NewObject):
 				FieldValueSection = "\n[FieldValues]\n"
 
 				params = Params + ApplyFieldValues + XCOORDS + self.coord_x + YCOORDS + self.coord_y + OBJECTTYPE + self.loctype + NAME + self.name + PRJID + self.proj_ID + FieldValueSection + FieldValues
-				print params
+				# fix_print_with_import
+				print(params)
 				#self.lgr.warning(params)
 				# execute method to create new object
 				error = GeODin.ExecuteMethodParams(39,params)
@@ -671,7 +695,8 @@ class NewObject(QDockWidget, Ui_NewObject):
 			
 			time.sleep(3)
 		except:
-			print "Unexpected error:", sys.exc_info()[0]
+			# fix_print_with_import
+			print("Unexpected error:", sys.exc_info()[0])
 		GeODin = None
 		
 	def deselect(self):
