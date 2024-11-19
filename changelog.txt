@@ -1,6 +1,14 @@
+# Version __3.0.2335.2__ (20.09.2023)
+
+* Bug fixing
+  * level of the logger GeODinQGIS changed to 'DEBUG'
+  * fixed missing qualified table name <schema>.LOCPRMGR
+  * fixed incorrect labelling of GeODinQGIS Explorer nodes
+  * changed default UserLId to 7
+
 # Version __3.0.2335.1__ (04.09.2023)
 
-* Bug fixes
+* Bug fixing
 
 # Version __3.0.2335__ (01.09.2023)
 

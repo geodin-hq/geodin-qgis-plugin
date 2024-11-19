@@ -2,7 +2,7 @@
 Classes:
     GxDbConnection              - class for direct access to a GeODin database
 
-25.07.2023 j.eber
+20.09.2023 j.ebert
 """
 
 import datetime
@@ -45,7 +45,7 @@ _log_password = "".ljust(random.randint(8,17), '*')
 class GxTables:
     """
 
-    25.07.2023 j.ebert
+    20.09.2023 j.ebert
     """
 
     def __init__(
@@ -123,6 +123,10 @@ class GxTables:
     def SYS_PRJDEFS(self):
         return f"{self.SchemaPrefix}_SYS_PRJDEFS"
 
+    @property
+    def LOCPRMGR(self):
+        return f"{self._Schema}.LOCPRMGR".lstrip(".")
+
 
 class GxDbCommandText:
     """
@@ -167,8 +171,7 @@ SELECT INVID FROM {self.Tbl.LOC_PRBREG} {where_clause}
 
     def load_LOCPRMGR(self, name=''):
         if not name:
-            name = f"{self.Tbl.Schema}.{name}".lstrip('.')
-##        tblName = f"{self.Tbl.SchemaPrefix}_{name}".lstrip('.')
+            name = self.Tbl.LOCPRMGR
         dbSQL = f"""
 SELECT PRJ_ID, PRJ_NAME, PRJ_ALIAS, PRJ_TYPE, PRJ_OPT, PRJ_USER, PRJ_DATE, PRJ_PATH, GEODINGUID
 FROM {name}"""
@@ -497,9 +500,9 @@ class GxDbConnection:
 
     def load_LOCPRMGR(
         self,
-        tblName='LOCPRMGR'
+        qualifiedTblName=''
     ):
-        """loads GeODin projects from table/view LOCPRMGR
+        """loads GeODin projects from table/view (default from LOCPRMGR)
 
         returns:
             res (list())        # list of projects/tuples
@@ -510,7 +513,11 @@ class GxDbConnection:
         self.log.log(gqc._LOG_TRACE, "%s Database '%s'...", self.DriverID, self.DbName)
         res = []
         try:
-            cmdText = self.CmdText.load_LOCPRMGR(tblName)
+            # 09/2023 j.ebert, default Leerstring übergeben (und den Namen 'LOCPRMGR')!
+            #   Wenn eine TableName übergeben wird,
+            #   dann muss der qualifizierte TableName sein (<Schema>.<TableName>)!
+            #   (Wenn kein TableName übergeben wird, dann wird <Schema>.LOCPRMGR genutzt.)
+            cmdText = self.CmdText.load_LOCPRMGR(qualifiedTblName)
             self._log_GxSQL(cmdText)
             res = self._CnnPrv.load_Data(cmdText)
             self._log_GxSQL()

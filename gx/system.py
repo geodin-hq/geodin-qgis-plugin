@@ -148,9 +148,10 @@ class GxReg:
         retruns:
             RegKey              - GeODin System RegKey 'UserLId' (REG_DWORD)
 
-        08.03.2023 j.ebert
+        20.09.2023 j.ebert
         """
-        return cls.query('System', 'UserLId', 0)
+        # 09/2023 j.ebert, Default UserLId 7 (Deutsch) - GeODin 9.6.264.0 (01.08.2023 - Win64)
+        return cls.query('System', 'UserLId', 7)
 
     @classmethod
     def prog_info(cls):

@@ -4,7 +4,7 @@
     "loggers": {
         "GeODinQGIS" : {
             "handlers" : ["hdl_file_debug", "hdl_file_error", "hdl_file_sql"],
-            "level": 1,
+            "level": "DEBUG",
             "propagate":false
             },
         "GeODinQGIS.fw.fg_res.Res": {
