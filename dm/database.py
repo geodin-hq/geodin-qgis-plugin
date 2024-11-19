@@ -5,7 +5,7 @@ Classes:
 Functions:
     default()
 
-17.04.2023 j.ebert
+24.04.2024 j.ebert
 """
 import os
 import datetime
@@ -18,6 +18,7 @@ import string
 import time
 import traceback
 import zipfile
+from  collections import Counter
 from pathlib import Path
 
 import GeODinQGIS.gqgis_base as gqb
@@ -476,17 +477,43 @@ class GoDatabase(bas.GoBaseClass):
         self._GoDict = res._loadDictionary(goFile)
         return
 
-        return
-
     def reload_GoPrjs(self):
+        """
+        24.04.2024 j.ebert
+        """
         # Projekte aus der GeODin-DB laden/initialisieren
         # 07/2023 j.ebert, Anmerkung
         #   Zur Zeit ist die erste List-Comprehension sinnfrei, aber
         #   für GeODin-Datenbanken mit Projekten die mehr als 9999 Objekte/Lokationen haben können,
         #   müssen die "echten" Projekten identifiziert werden, entweder hier oder
         #   bereits breits bei der SQL-Abfrage von LOCPRMGR
-        idxFld_PRJ_ID = GoProject.idxSQLFld('PRJ_ID')
-        rows = [row for row in self._GT_LOCPRMGR if row[idxFld_PRJ_ID]]
+##        idxFld_PRJ_ID = GoProject.idxSQLFld('PRJ_ID')
+##        rows = [row for row in self._GT_LOCPRMGR if row[idxFld_PRJ_ID]]
+        # 04/2024 j.ebert, Auswahl der Porjekte mit weniger als 10.000 Locationen ~~~~~~~~~~~~~~~~~~
+        # - Index vom Feld mit der GEODINGUID ermitteln
+        # - Frequency/Häufigkeit der GEODINGUIDs ermitteln
+        #   Achtung, folgedende Datensätze werden ignoriert
+        #     bool(row[idxFld_UID])     -> GEODINGUID nicht gesetzt (None oder leere Zeichenkette)
+        #     row[idxFld_UID].strip()   -> GEODINGUID enthält nur Leerzeichen
+        # - Zeilen ermitteln, deren GEODINGUID nicht mehrfach enthalten ist
+        #   Achtung, hier wieder die Ausnahmen wie oben, also inklusive(!) der Zeilen
+        #     deren GEODINGUID nicht im Dict frqUID enthalten sind
+        # - Error-Logging, wenn GEODINGUIDs mehrfach enhalten sind
+        idxFld_UID = GoProject.idxSQLFld('GEODINGUID')
+        frqUID = Counter(
+            row[idxFld_UID] for row in self._GT_LOCPRMGR if (
+                bool(row[idxFld_UID]) and row[idxFld_UID].strip()
+            )
+        )
+        rows = [row for row in self._GT_LOCPRMGR if (frqUID.get(row[idxFld_UID], 0) < 2)]
+        errUIDs = [ key for  key, val in frqUID.items() if val > 1]
+        if errUIDs:
+            self.log.error(
+                "Projects with more than 9,999 locations are not yet supported! \n\t%s : %s",
+                'GEODINGUID',
+                json.dumps(errUIDs, indent=4).replace("\n", "\n\t")
+            )
+        # 04/2024 j.ebert ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         newPrjs = [GoProject.fromSQL(self, row) for row in rows]
         # Projekte der GoDatabase aktualisieren/überladen
         # - Projekte in der GoDatabase identifizieren

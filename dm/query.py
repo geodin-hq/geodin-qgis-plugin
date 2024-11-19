@@ -29,7 +29,10 @@ class GoQuery(GoBaseClass):
         ):
         super().__init__(dbRef, prjID, name)
         self.log.log(gqc._LOG_TRACE,"")
-        self._Label = self.goDict(name)
+        # 04/2024 j.ebert, Achtung
+        #     Attribut _Label in dieser Klasse NICHT nutzen, sondern nur Property Label!
+        #   (siehe auch Kommentar in Property GoQuery.Label)
+        # self._Label = self.goDict(name)
         self._Desc = ""
         self._Kind = ""
         self._Opts = None
@@ -81,6 +84,28 @@ class GoQuery(GoBaseClass):
         13.06.2023 j.ebert
         """
         return self._Kind
+
+    @property
+    def Label(self):
+        """label/displayname
+
+        24.04.2024 j.ebert
+        """
+        # 04/2024 j.ebert, Überladen der Property Label für class GoQuery
+        #     Label ist nicht nur der Displayname im GeoDinExplorer, sondern auch
+        #   Parameter bei GeoDin-COM-Funktionen. Daher muss der Displayname im GeoDinExplorer
+        #   vom Plugin identisch mit dem Displaynamen im Objekt-Manager von GeoDin (GOM) sein.
+        #     Der Label/Displayname von GeoDin-Abfragen (GxQryINV, GxQryLOC) ist unabhängig von
+        #   der GeoDin-Spracheinstellung, aber NICHT der Label/Displayname von Standard-Abfragen
+        #   (GxTypINV, GxTypLOC, GxAllLOC).
+        # 04/2024 j.ebert, Achtung
+        #     Die Poroperty Label wird für Abfragen überladen, weil das Setzen des Attr _Label
+        #   bei der Instanzierung einer Anfrage nicht zuverlässig funktioniert, offensichtlich
+        #   auf Grund der Reihenfolge der Instanzierung von Abfragen, die aus dem DDX geladen
+        #   werden und dem Laden vom Dictionary in Abhängigkeit der der GeoDin-Spracheinstellung.
+        #   Damit wird das Attribut _Label in dieser Klasse nicht mehr unterstützt!!!
+##        return self._Label if self._Label else self._Name
+        return self._Name if self._Kind in ('GxQryINV', 'GxQryLOC') else self.goDict(self._Name)
 
     @property
     def UID(self):
@@ -321,7 +346,7 @@ class GoQuery(GoBaseClass):
         data                    # tuple (PRJ_ID, OBJ_DESC, OBJ_NAME, OBJ_CNT)
     ):
         """
-        31.07.2023 j.ebert
+        25.04.2024 j.ebert
         """
         obj = cls(dbRef, prjID, data[2])
         obj._tag = data
@@ -332,7 +357,7 @@ class GoQuery(GoBaseClass):
         }.get(data[1], 'GxQry???')
         obj._Opts = [data[-1], data[1]]
         if data[-1] != 1:
-            self._error = "Query name in GeODin object manager not unique!"
+            obj._error = "Query name in GeODin object manager not unique!"
         obj.validate()
         return obj
 
@@ -342,7 +367,7 @@ class GoQuery(GoBaseClass):
     ):
         """overloads this query with 'other' query (loaded from the GeODin database)
 
-        03.08.2023 j.ebert
+        24.04.2024 j.ebert
         """
         assert type(other) is type(self), \
             "Type '%s' is expected, but type '%s' was given" % (
@@ -368,7 +393,10 @@ class GoQuery(GoBaseClass):
                 #   Notw. weil die GeODin-COM-Funktion den GOM-Namen als Paramerter haben.
                 self._Name = other._Name
                 # - Attr _Label aktualisieren (siehe auch GoQuery.__init__())
-                self._Label = self.goDict(self._Name)
+                #   04/2024 j.ebert, Achtung
+                #       Attribut _Label in dieser Klasse NICHT nutzen, sondern nur Property Label!
+                #     (siehe auch Kommentar in Property GoQuery.Label)
+                # self._Label = self.goDict(self._Name)
             # - Attr _tag übernehmen (Daten der Abfrage, die aus der GeODin-DB geladen wurden)
             #   08/2023 j.ebert, Attr _tag wird in GoQuery.from_json() nicht gesetzt
             self._tag = other._tag

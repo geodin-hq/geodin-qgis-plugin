@@ -2,7 +2,7 @@
 Classes:
     GxDbConnection              - class for direct access to a GeODin database
 
-20.09.2023 j.ebert
+23.04.2024 j.ebert
 """
 
 import datetime
@@ -418,7 +418,7 @@ class GxDbConnection:
             res (list())        # list of messurment point types (INV_TYPE)
 
 
-        26.07.2023 j.ebert
+        23.04.2024 j.ebert
         """
         self.log.log(gqc._LOG_TRACE, "%s Database '%s'...", self.DriverID, self.DbName)
         res = []
@@ -440,7 +440,12 @@ class GxDbConnection:
             #   ...[10:13]  - INV_TYPE aus der INVID Extrahieren
             #   row[0]      - INVID aus Tuple extrahieren
             #                 Ergebnis einer SQL-Abfrage ist immer List of Tuple!!!
-            res = list(set([row[0][10:13] for row in res]))
+            #   if ...      - Filter für gültige INVIDs (04/2024 j.ebert, Fehlertoleranz)
+            #                 - INVID muss gestetz sein (nicht NULL und keine leere Zeichenkette)
+            #                 - INVID muss genau 16 Zeichen haben
+            #                   Hier mindestens 13 (Zeichen 11..13 sind INVTYPE), sonst
+            #                   muss die Liste der INVTYPES auf Fehler geprüft werden.
+            res = list(set([row[0][10:13] for row in res if bool(row[0]) and (len(row[0]) == 16)]))
             if self.log.level <= logging.DEBUG:
                 self.log.debug(
                     "INV_TYPES (PrjID '%s'): \n\t%s",

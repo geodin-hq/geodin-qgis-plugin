@@ -1,3 +1,14 @@
+# Version __3.0.2417__ (25.04.2024)
+
+* Changes
+  * improved naming of GeoDin layers when newly added in QGIS
+  * error handling for projects with more than 9,999 locations
+
+* Bug fixing
+  * fixed bug in Hotlink tool
+  * fixed issue with query label dependency on GeoDin language setting
+  * fault tolerance when extracting existing INVTYPEs
+
 # Version __3.0.2335.4__ (27.03.2024)
 
 * Bug fixing

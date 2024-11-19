@@ -84,6 +84,27 @@ class GoNodeQuery(GoNode):
         self.log.log(gqc._LOG_TRACE, alias)
         return alias
 
+    def layerName(self):
+        """returns QGIS layer name for this GoQuery
+
+        25.04.2024 j.ebert
+        """
+        # v2335.4, Name der Abfrage
+        #   -> Name/Displayname vom QgsMapLayer nicht entsprechend der GeoDin-Sparcheinstellung
+        #   -> keine Differnezierung bzgl. der GeoDin-Projekte (z. B: immer 'All objets')
+        #      (-> sehr unschön bei Auswahl in ComboBox für Hotlink-/Selection-Tool)
+        # lyrName = self.tag().Name
+        # 04/2024 j.ebert, Name der Abfrage...
+        #   - entsprechend der (aktuellen) GeoDin-Sparcheinstellung wie im GeoDinExplorer
+        #   - mit Namen von Projekt bzw. Datenbank als Zusatz
+        #   Anmerkung:
+        #     Projekt/Datenbank ist im GeoDinExplorer/QTreeWidget der Parent vom Parent der Abfrage
+        #     (Projekt/Datenbank > Objekte/Messpunkte > Abfragen (ganz allg.))
+        lyrName = self.tag().Label
+        if hasattr(self.parent().parent().tag(), 'Label'):
+            lyrName += " (%s)" % self.parent().parent().tag().Label
+        return lyrName
+
     def layers(self):
         """returns a QgsVectorLayer/GoLayer list of this GoQuery
 
@@ -200,7 +221,7 @@ class GoNodeQuery(GoNode):
     def onLayerAdd(self):
         """updates query result/GEOJSON file
 
-        01.08.2023 j.ebert
+        25.04.2024 j.ebert
         """
         self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)
         # Abfrage im GOM selektieren...
@@ -211,7 +232,8 @@ class GoNodeQuery(GoNode):
             if not self.DataPath.exists():
                 self.onLayerUpdate()
             # QGIS Layer erstellen
-            newLyr = qgis.core.QgsVectorLayer(str(self.DataPath), self.tag().Name, "ogr")
+##            newLyr = qgis.core.QgsVectorLayer(str(self.DataPath), self.tag().Name, "ogr")
+            newLyr = qgis.core.QgsVectorLayer(str(self.DataPath), self.layerName(), "ogr")
             # EPSG ermitteln...
             # 01.03.2023 j.ebert, Anmerkung
             #   Nach GeoJSON Specification (RFC 7946) ist kein CRS enhalten, sondern immer WGS 1983.

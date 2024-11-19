@@ -27,15 +27,15 @@ try:
 except:
     pass
 
-_log_password = "".ljust(random.randint(8,17), '*')
-"""general password for logging"""
-
 import GeODinQGIS.gqgis_base as gqb
 import GeODinQGIS.gqgis_config as gqc
 from .system import (
     GxReg,
     GxSys
 )
+
+_log_password = "".ljust(random.randint(8,17), '*')
+"""general password for logging"""
 
 class GxCOM:
     """GeODin COM interface (Singleton!)
@@ -503,7 +503,7 @@ class GxCOM:
             eine leere Zeichenkette
             GeODin 9.6 (Release Build: G2640722 Datum 27.10.2022 Liznez: Essentials|Professional)
 
-        01.08.2023 j.ebert
+        25.04.2024 j.ebert
         """
         assert self._gCOM, f"{__gCOM_Alias} not activated"
         assert isinstance(filename, str) and bool(filename), \
@@ -528,6 +528,18 @@ Filename={filename}
         if self._gCOM_ExcetpionVal:
             raise gqb.GxGComException(
                 "COM Exception %02d (%s)", self._gCOM_ExcetpionVal,  self._gCOM_ExcetpionMsg
+            )
+        elif not os.path.exists(filename):
+            # 04/2024 j.ebert, GeODin 10.0.267.0 (05.01.2024)
+            #   - GeoDin-COM-Funktion zum Exportieren einer FeatureCollection wird aufgerufen
+            #   - in GeoDin wird die Methode 'Publizieren und Exportieren' gestartet, aber
+            #     verursacht einen Fehler, das die Abfrage "die Methode nicht unterstützt"
+            #   - Fehlermeldung wird in GeoDin angezeigt und mit OK bestätigt
+            #   - FeatureCollection wird nicht exportiert - logisch, ABER
+            #     auch kein ExceptionVal über die COM-Schnittstelle zurückgegeben!?
+            #   Fazit: Problem-Identifikation nur exportierte File möglich :(
+            raise gqb.GxGComException(
+                "COM Trouble (%s)\n\n%s",  "FeatureCollection not exported", filename
             )
         return
 

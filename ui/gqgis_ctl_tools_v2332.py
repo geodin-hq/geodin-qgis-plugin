@@ -7,7 +7,7 @@ Classes:
     GQgis_Cbo_Layers            - QComboBox to select GeODin plugin layer
     GQgis_MapToolHotlink        - QgsMapToolIdentifyFeature to identify object in GOM
 
-15.08.2023 j.ebert
+23.04.2024 j.ebert
 """
 import datetime
 import json
@@ -682,12 +682,15 @@ class GQgis_MapToolHotlink(qgis.gui.QgsMapToolIdentifyFeature):
         super().__init__(canvas, vl)
         self.log  = logging.getLogger(f"{gqc._LOG_PARENTS}{self.__class__.__name__}")
         self.log.log(gqc._LOG_TRACE,"")
+        # GoLayer Porpteries initialisieren...
+        # (Properties werden in onGoLyrChanged() gesetzt nach GQgis_CBo_Layers.currentIndexChanged)
+        self._GoLyr = None                  # akt. QgsLayer vom MapTool
+        self._GoLyrAttrName = ""            # Attributname des QgsLayer mit INVID
+        self._GoLyrPrmsSelectObject = {}    # SelectObject-Parmater für GeoDin-Schnittstelle
+        # QComboBox-Event/GQgis_CBo_Layers.currentIndexChanged verbinden
+        self.cboLayers().currentIndexChanged.connect(self.onGoLyrChanged)
         # QgsMapToolIdentifyFeature initialisieren...
         self.featureIdentified.connect(self.onFeatureIdentified)
-        # GoLayers QComboBox referenzieren
-        self.cboLayers().currentIndexChanged.connect(self.onGoLyrChanged)
-        self._GoLyrAttrName = ""
-        self._GoLyrPrmsSelectObject = {}
 
     @property
     def GoLyrAttrName(self):
@@ -713,6 +716,9 @@ class GQgis_MapToolHotlink(qgis.gui.QgsMapToolIdentifyFeature):
         return
 
     def onFeatureIdentified(self, feature):
+        """
+        23.04.2024 j.ebert
+        """
         self.log.log(gqc._LOG_TRACE,"TRACE")
         self.log.debug(str(self.GoLyrPrmsSelectObject))
         if self.GoLyrPrmsSelectObject:
@@ -723,25 +729,19 @@ class GQgis_MapToolHotlink(qgis.gui.QgsMapToolIdentifyFeature):
                 gx.gApp.selectObject(self.GoLyrPrmsSelectObject)
             except gqb.GQgisException as exc:
                 self.log.error(exc.msg(), exc_info=True)
-##                GQgis_MsgBox.error(self._parent, self.text(), exc.msg())
                 GQgis_MsgBox.error(None, 'Hotlink Tool', exc.msg())
                 # Layer in TOC selektieren...
                 # 08/2023 j.ebert, Achtung ggf. exitiert der Layer nicht!
-                if lyr:
+                if self._GoLyr:
                     try:
-                        qgis.utils.iface.layerTreeView().setCurrentLayer(lyr)
+                        qgis.utils.iface.layerTreeView().setCurrentLayer(self._GoLyr)
                     except:
                         self.log.debug(
                             "Layer could not be activated in the TOC...\n\t%s (LayerId '%s')",
-                            lyrText, lyrId
+                            self._GoLyr.name(), self._GoLyr.id()
                         )
             except:
                 self.log.critical("Unkown error on 'Identify Object'", exc_info=True)
-##                GQgis_MsgBox.critical(
-##                    self._parent,
-##                    self.text(),
-##                    "Unkown error on 'Identify Object'"
-##                )
                 GQgis_MsgBox.critical(
                     None,
                     'Hotlink Tool',
@@ -749,15 +749,21 @@ class GQgis_MapToolHotlink(qgis.gui.QgsMapToolIdentifyFeature):
                 )
 
     def updateGoLyr(self):
+        """
+        23.04.2024 j.ebert
+        """
         self.log.log(gqc._LOG_TRACE,"TRACE")
         qActEnabled = True
         qActToolTip = ""
         if not self.cboLayers().GoLyrExc:
             qActToolTip = self.cboLayers().GoLyrQry.LongLabel
+            # 04/2024 j.ebert, QgsLayer speichern, den das QgsMapToolIdentifyFeature nutzt
+            #                  Der Layer ist write only (QgsMapToolIdentifyFeaturesetLayer())!? :(
+            self._GoLyr = self.cboLayers().GoLyr
             self._GoLyrAttrName = self.cboLayers().GoLyrAttrName
             self._GoLyrPrmsSelectObject = self.cboLayers().GoLyrQry.prmsSelectObject()
             # MapTool aktualisieren und ggf. erneut aktivieren(?)...
-            self.setLayer(self.cboLayers().GoLyr)
+            self.setLayer(self._GoLyr)
 ##            if self.isActive():
 ##                self.activate()
         else:
