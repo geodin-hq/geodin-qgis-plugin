@@ -299,4 +299,5 @@ if __name__ == '__main__':
     res = Res()
     resx = Res()
     print (f"id(res)     {id(res)}\nid(resx)    {id(resx)}")
+    print(__file__)
     main()

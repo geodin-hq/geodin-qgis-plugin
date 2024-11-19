@@ -1,4 +1,8 @@
+# Version __3.0.2335.1__ (04.09.2023)
+
+* Bug fixes
+
 # Version __3.0.2335__ (01.09.2023)
 
-* Pre-Release GeODin Plugin für QGIS 3
+* Pre-Release GeODin Plugin for QGIS 3
 
