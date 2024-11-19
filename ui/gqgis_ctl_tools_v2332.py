@@ -646,13 +646,13 @@ class GQgis_Cbo_Layers(QtWidgets.QComboBox, GQgis_Bas_Widget):
         # GoLayers sortieren...
         self._GoLyrs.sort(key = lambda row : row[2])
         # GoLayers debuggen...
-        if self.log.level <= logging.DEBUG:
+        if self.log.level <= gqc._LOG_DATA:
             logRows = [str(row[1]) for row in self._GoLyrs]
-            self.log.debug(
+            self.log.log(gqc._LOG_DATA,
                 "GoLayers (longName): \n\t%s", json.dumps(logRows, indent=4).replace("\n", "\n\t")
             )
             logRows = [str(row[2]) for row in self._GoLyrs]
-            self.log.debug(
+            self.log.log(gqc._LOG_DATA,
                 "GoLayers (sortText): \n\t%s", json.dumps(logRows, indent=4).replace("\n", "\n\t")
             )
         # QCombobox Items aktualiseren

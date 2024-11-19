@@ -2,10 +2,11 @@
 Classes:
     GoNodeQuery                 - Query ViewModel/QTreeWidgetItem
 
-31.07.2023 j.ebert
+26.03.2024 j.ebert
 """
 import json
 import logging
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -31,7 +32,7 @@ from GeODinQGIS.vm.bas_node import *
 class GoNodeQuery(GoNode):
     """Project (GeODin Projekt) ViewModel/QTreeWidgetItem
 
-    28.07.2023 j.ebert
+    26.03.2024 j.ebert
     """
 
     _GxSettings = {
@@ -84,18 +85,27 @@ class GoNodeQuery(GoNode):
         return alias
 
     def layers(self):
+        """returns a QgsVectorLayer/GoLayer list of this GoQuery
+
+        26.03.2024 j.ebert
+        """
         # https://gis.stackexchange.com/questions/211960/selecting-several-layers-programmatically-using-pyqgis
         lyrs = []
+        # validen/potentiellen GeoDin-Object-Layer (QgsVectorLayer, GeoJSON, ...) listen...
+        mapLyrs = [lyr for lyr in qgis.core.QgsProject.instance().mapLayers().values() if (
+            self.validGoLayer(lyr)
+        )]
+        # Liste der validen/potentiellen GeoDin-Object-Layer prüfen...
         if self.DataPath.exists():
             # 08/2023 j.ebert, Anmerkung
             #   Path(<filename>).samefile() verursacht einen FileNotFoundError, wenn
             #   das Fiel <filename> nicht eixtiert, also bie not Path(<filename>).exists()
-            for lyr in qgis.core.QgsProject.instance().mapLayers().values():
+            for lyr in mapLyrs:
                 if self.DataPath.samefile(lyr.source().split('|')[0]):
                     lyrs.append(lyr)
         else:
             dataSource = str(self.DataPath).lower()
-            for lyr in qgis.core.QgsProject.instance().mapLayers().values():
+            for lyr in mapLyrs:
                 if (lyr.source().split('|')[0].lower() == dataSource):
                     lyrs.append(lyr)
         return lyrs
@@ -367,6 +377,40 @@ class GoNodeQuery(GoNode):
         self.log.log(gqc._LOG_TRACE, "")
         idx = self._GxSettings.get(self.tag().Kind, self._GxSettings['Default'])[0]
         return idx
+
+    def validGoLayer(
+        self,
+        qgsLayer
+    ):
+        """True if 'qgsLayer' can be a GoLayer (QgsVectorLayer, GeoJSON, ...)
+
+        26.03.2024 j.ebert
+        """
+        self.log.log(gqc._LOG_TRACE, "")
+        val = False
+        if (
+            isinstance(qgsLayer, qgis.core.QgsVectorLayer) and
+            (qgsLayer.dataProvider().storageType() == 'GeoJSON')
+        ):
+            try:
+                statinfo = os.stat(qgsLayer.source().split('|')[0])
+                # -> Die WindowsPath-Syntax ist richitg und die Layer Source existiert
+                # -> Der QgsVectorLayer kann ein GoLayer sein.
+                val = True
+            except FileNotFoundError:
+                # FileNotFoundError: [WinError 3] Das System kann den angegebenen Pfad nicht finden:
+                # -> Die WindowsPath-Syntax ist richitg, aber die Layer Source existiert nicht
+                # -> Der QgsVectorLayer kann ein GoLayer sein.
+                val = True
+            except:
+                # OSError: [WinError 123] Die Syntax für den Dateinamen, Verzeichnisnamen oder die Datenträgerbezeichnung ist falsch:
+                # -> Die WindowsPath-Syntax ist falsch!
+                # -> Der QgsVectorLayer kann kein GoLayer sein.
+                self.log.warning(
+                    "Ignore layer \"%s\"\n\t%s", str(qgsLayer), qgsLayer.source(),
+                    exc_info=True
+                )
+        return val
 
     def _remove(self):
         # DataSource löschen...

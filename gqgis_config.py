@@ -55,6 +55,8 @@ Anmerkung
 
 _LOG_TRACE = 5
 """Logging-Level für Einzelschritte/für den Programmablauf (kleiner als 10/logging.INFO)"""
+_LOG_DATA = 9
+"""Logging-Level für Daten/Listen (kleiner als 10/logging.INFO)"""
 
 _LOG_GxCOM = 14
 """Logging-Level für GeODin COM Interface (insbesondere für Aufrufe der GeODin COM-Funktionen)"""

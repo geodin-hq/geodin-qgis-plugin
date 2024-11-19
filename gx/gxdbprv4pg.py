@@ -115,7 +115,10 @@ class GxDbProvider4PG (GxDbProvider):
         self,
         cmdText
     ):
-        self.log.log(gqc._LOG_TRACE,"\n%s\n", cmdText)
+        """
+        27.03.2024 j.ebert
+        """
+        self.log.log(gqc._LOG_TRACE, "\n%s\n", cmdText)
         res = []
         with psycopg2.connect(self._CnnTag) as cnn:
             # conn.commit() will automatically be called when Python leaves the outer `with` statement
@@ -124,7 +127,7 @@ class GxDbProvider4PG (GxDbProvider):
             crs = cnn.cursor()
             crs.execute(cmdText)
             res = crs.fetchall()
-        self.log.debug("\n%s", str(res))
+        self.log.log(gqc._LOG_DATA, "\n%s", str(res))
         return res
 
     def validate(self):

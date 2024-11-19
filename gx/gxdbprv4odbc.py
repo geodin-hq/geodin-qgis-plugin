@@ -36,6 +36,9 @@ class GxDbProvider4ODBC (GxDbProvider):
         self,
         cmdText
     ):
+        """
+        27.03.2024 j.ebert
+        """
         self.log.log(gqc._LOG_TRACE,"\n%s\n", cmdText)
         res = []
         with pyodbc.connect(self._CnnTag) as cnn:
@@ -45,7 +48,7 @@ class GxDbProvider4ODBC (GxDbProvider):
             crs = cnn.cursor()
             crs.execute(cmdText)
             res = crs.fetchall()
-        self.log.debug("\n%s", str(res))
+        self.log.log(gqc._LOG_DATA, "\n%s", str(res))
         return res
 
     def validate(self):

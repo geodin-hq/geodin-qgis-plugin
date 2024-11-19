@@ -1,3 +1,9 @@
+# Version __3.0.2335.4__ (27.03.2024)
+
+* Bug fixing
+  * fixed bug in handling non-file based QGIS layers
+  * changed data logging
+
 # Version __3.0.2335.3__ (23.02.2024)
 
 * Bug fixing
