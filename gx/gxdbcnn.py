@@ -205,7 +205,7 @@ WHERE (OBJ_DESC = 'MESQUERY') OR (OBJ_DESC = 'LOCQUERY')
         #   Achtung!
         #   - OBJ_ID ist nicht immer unique in der GeODin-Datenbank
         #     (in Test-DB traten OBJ_IDs mehrfach auf, vielleicht nach Kopieren einer GeODin-Porjektes)
-        #   - Aggregat-Funktion FIRST() ist NICHT Standard (in Oracle fnktioniert First(99 nicht wie in Access)
+        #   - Aggregat-Funktion FIRST() ist NICHT Standard (in Oracle funktioniert First() nicht wie in Access)
         #   - Oracle akzeptiert AS vor dem Tabellen-Alias NICHT!!!
         #   SQL-Statement getestet mit Access, MS SQL, MySQL, Posrtgre, Oracle
         dbSQL = f"""

@@ -616,14 +616,14 @@ class GoDatabase(bas.GoBaseClass):
     ):
         """returns a key/QryDesc to build unique query ID <DbDesc>_<PrjID>_<QryKind>_<QryDesc>
 
-        03.08.2023 j.ebert
+        21.02.2024 j.ebert, Bug fixing
         """
         newKey = ""
         # Keys ermitteln die bereits existieren...
         #   Suche innerhalb der Datenbank auf Projekt und Abfrage-Art einschränken
         #   Nicht gesetzte Keys (Attr _Desc) ignorieren
         qryKeys = [
-            qry._desc for qry in self._GoQrys if (
+            qry._Desc for qry in self._GoQrys if (
                 (qry.PrjID == prjID) and (qry.Kind == qryKind) and bool(qry._Desc))
         ]
         # Key setzen und prüfen, ob dieser ggf. bereits existiert

@@ -1,3 +1,8 @@
+# Version __3.0.2335.3__ (23.02.2024)
+
+* Bug fixing
+  * fixed bug in creating unique query ID
+
 # Version __3.0.2335.2__ (20.09.2023)
 
 * Bug fixing
