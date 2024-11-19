@@ -1,0 +1,20 @@
+# GeODin Dictionary (UserLId 31) - Türkisch
+{
+    # Plugin für QGIS 3 übersetzt auch Klassnamen...
+    "GoNodeGrpLOC": "Nesneler yükleniyor",
+    "GoNodeGrpINV": "Ölçüm noktaları",
+    "GoNodeGrpADC": "Belgeler",
+    # Bezeichnungen aus GeODin-Objekt-Manager
+    "Objects": "Nesneler yükleniyor",
+    "Measurement points": "Ölçüm noktaları",
+    "Documents": "Belgeler",
+    "All objects": "Tüm nesneler",
+    # Objektarten/Fld GEN_NAME(!!!) in Tbl SYS_LOCTYPES
+    "Geotechnische Erkundung EN ISO 22475 (2018)": "Geotechnical investigation EN ISO 22475 (2018)",
+    # Messpunktarten/Fld INV_NAME(!!!) in Tbl SYS_INVTYPES
+    "Bohrehole": "Bohrung",
+    "Filter": "Filter",
+    "Samples": "Proben",
+    # Sonstiges
+    "xxx": "xxx"
+}

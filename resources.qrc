@@ -1,37 +1,127 @@
 <RCC>
-    <qresource prefix="/plugins/GeODinQGIS" >
-		<file>icons/logo.png</file>
-		<file>icons/delete.png</file>
-		<file>icons/i_484F.png</file>
-        <file>icons/i_099F.png</file>
-		<file>icons/i_126F.png</file>
-		<file>icons/i_222F.png</file>
-		<file>icons/i_232F.png</file>
-		<file>icons/i_485F.png</file>
-		<file>icons/i_101F.png</file>
-		<file>icons/i_371F.png</file>
-		<file>icons/i_370F.png</file>
-		<file>icons/i_372F.png</file>
-		<file>icons/i_373F.png</file>
-		<file>icons/i_100F.png</file>
-		<file>icons/i_102F.png</file>
-		<file>icons/i_157F.png</file>
-		<file>icons/i_246F.png</file>
-		<file>icons/i_095F.png</file>
-		<file>icons/help.png</file>
-		<file>icons/edit.png</file>
-		<file>icons/point_add_n.png</file>
-		<file>icons/point_create_n.png</file>
-		<file>icons/system_refresh.png</file>
-		<file>icons/system_help.png</file>
-		<file>icons/system_run.png</file>
-		<file>icons/i_090F.png</file>
-		<file>icons/point_drag_n.png</file>
-		<file>icons/i_0815F.png</file>
-		<file>icons/settings.png</file>
-		<file>icons/info.png</file>
-		<file>icons/fugro.png</file>
-		<file>icons/minus.png</file>
-		<file>icons/flag_poland.png</file>
-    </qresource>
+  <qresource prefix="/plugins/GeODinQGIS">
+    <file alias="GenericMail">res/img/Email32.png</file>
+    <file alias="gLyrsReload">res/img/GxLyrReload.png</file>
+    <file alias="gToolHotlink">res/img/GxToolHotlink_16.png</file>
+    <file alias="gToolLayout">res/img/GxToolLayout_16.png</file>
+    <file alias="gToolSelection">res/img/GxToolSelection_16.png</file>
+    <file alias="gLnkTIF">res/img/089F.PNG</file>
+    <file alias="gLnkADC">res/img/246F.png</file>
+    <file alias="gDB">res/img/025F.PNG</file>
+    <file alias="gDBOpen">res/img/237F.PNG</file>
+    <file alias="gQry">res/img/090F.png</file>
+    <file alias="gIcon">res/img/095F.png</file>
+    <file alias="gPRJ">res/img/099F.png</file>
+    <file>res/img/100F.png</file>
+    <file alias="gPRJOpen">res/img/101F.png</file>
+    <file alias="gNode">res/img/GoNode_32.png</file>
+    <file alias="gGrpLOC">res/img/126F.png</file>
+    <file alias="gGrpADC">res/img/157F.png</file>
+    <file alias="gTypLOC">res/img/222F.png</file>
+    <file>res/img/232F.png</file>
+    <file alias="gLang_DE">res/img/370F.png</file>
+    <file alias="gLang_EN">res/img/371F.png</file>
+    <file>res/img/484F.png</file>
+    <file>res/img/485F.png</file>
+    <file>res/img/0815F.png</file>
+    <file alias="gApp">res/img/GxApp_32.png</file>
+    <file alias="gExplorer">res/img/GxExplorer_32.png</file>
+    <file alias="GenericNew_16">res/img/GenericNewSparkleLarge16.png</file>
+    <file alias="gScott">res/img/EvilGenius32.png</file>
+    <file alias="GenericHelp">res/img/GenericHelpSystem_B_32.png</file>
+    <file alias="GenericInfo">res/img/GenericInformation_B_32.png</file>
+    <file alias="GenericRefresh">res/img/GenericRefresh_B_32.png</file>
+    <file alias="gTiger">res/img/MarsCat32.png</file>
+    <file alias="gDDX">res/img/GxPkg_32.png</file>
+    <file alias="gDDXNew">res/img/GxPkgNew_32.png</file>
+    <file>res/img/GxPkg.png</file>
+    <file>res/img/GxPkgNew.png</file>
+    <file>res/img/029F.png</file>
+    <file alias="Folder">res/img/Folder.png</file>
+    <file alias="FolderNew">res/img/FolderNew.png</file>
+    <file alias="FolderOpen">res/img/FolderOpenState.png</file>
+    <file alias="GenericError_16">res/img/GenericError.png</file>
+    <file alias="GenericExcleamation">res/img/GenericExclamation.png</file>
+    <file alias="GenericInfo_16">res/img/GenericInformation.png</file>
+    <file alias="GenericProperties">res/img/GenericProperties.png</file>
+    <file alias="GenericRedo">res/img/GenericRedo.png</file>
+    <file alias="GenericRefresh">res/img/GenericRefresh.png</file>
+    <file alias="GenericSave">res/img/GenericSave.png</file>
+    <file alias="GenericSearch">res/img/GenericSearch.png</file>
+    <file alias="GenericUndo">res/img/GenericUndo.png</file>
+    <file alias="GenericWarning_16">res/img/GenericWarning.png</file>
+    <file>res/img/help.png</file>
+    <file alias="gSettings">res/img/045F.png</file>
+    <file alias="gQgis">res/img/095F.png</file>
+    <file>res/img/101F.png</file>
+    <file>res/img/107F.png</file>
+    <file>res/img/111F.png</file>
+    <file>res/img/122F.png</file>
+    <file alias="gDBGroup">res/img/129F.png</file>
+    <file alias="gGrpINV">res/img/158F.PNG</file>
+    <file alias="GenericDelete">res/img/102F.png</file>
+    <file alias="gDBRoot">res/img/146F.png</file>
+    <file>res/img/165F.png</file>
+    <file>res/img/168F.png</file>
+    <file>res/img/169F.png</file>
+    <file>res/img/170F.png</file>
+    <file>res/img/171F.png</file>
+    <file>res/img/193F.png</file>
+    <file alias="gTypINV">res/img/226F.png</file>
+    <file>res/img/229F.png</file>
+    <file>res/img/230F.PNG</file>
+    <file>res/img/231F.PNG</file>
+    <file>res/img/242F.PNG</file>
+    <file>res/img/243F.PNG</file>
+    <file>res/img/244F.PNG</file>
+    <file>res/img/245F.PNG</file>
+    <file>res/img/369F.png</file>
+    <file>res/img/485F.png</file>
+    <file>res/img/addLayout.png</file>
+    <file>res/img/delete.png</file>
+    <file>res/img/edit.png</file>
+    <file alias="gHelp">res/img/help.png</file>
+    <file>res/img/icon1.png</file>
+    <file alias="gInfo">res/img/info.png</file>
+    <file>res/img/logo.png</file>
+    <file>res/img/map_icon.png</file>
+    <file>res/img/minus.png</file>
+    <file>res/img/reloadLayout.png</file>
+    <file>res/img/removeLayout.png</file>
+    <file>res/img/settings.png</file>
+    <file>res/img/transparent.png</file>
+    <file>icons/logo.png</file>
+    <file>icons/delete.png</file>
+    <file>icons/i_484F.png</file>
+    <file>icons/i_099F.png</file>
+    <file>icons/i_126F.png</file>
+    <file>icons/i_222F.png</file>
+    <file>icons/i_232F.png</file>
+    <file>icons/i_485F.png</file>
+    <file>icons/i_101F.png</file>
+    <file>icons/i_371F.png</file>
+    <file>icons/i_370F.png</file>
+    <file>icons/i_372F.png</file>
+    <file>icons/i_373F.png</file>
+    <file>icons/i_100F.png</file>
+    <file>icons/i_102F.png</file>
+    <file>icons/i_157F.png</file>
+    <file>icons/i_246F.png</file>
+    <file>icons/i_095F.png</file>
+    <file>icons/help.png</file>
+    <file>icons/edit.png</file>
+    <file>icons/point_add_n.png</file>
+    <file>icons/point_create_n.png</file>
+    <file>icons/system_refresh.png</file>
+    <file>icons/system_help.png</file>
+    <file>icons/system_run.png</file>
+    <file>icons/i_090F.png</file>
+    <file>icons/point_drag_n.png</file>
+    <file>icons/i_0815F.png</file>
+    <file>icons/settings.png</file>
+    <file>icons/info.png</file>
+    <file>icons/fugro.png</file>
+    <file>icons/minus.png</file>
+    <file>icons/flag_poland.png</file>
+  </qresource>
 </RCC>

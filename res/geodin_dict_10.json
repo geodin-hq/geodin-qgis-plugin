@@ -1,0 +1,20 @@
+# GeODin Dictionary (UserLId 10) - Spanisch
+{
+    # Plugin für QGIS 3 übersetzt auch Klassnamen...
+    "GoNodeGrpLOC": "Objetos",
+    "GoNodeGrpINV": "Puntos de medida",
+    "GoNodeGrpADC": "Documentos",
+    # Bezeichnungen aus GeODin-Objekt-Manager
+    "Objects": "Objetos",
+    "Measurement points": "Puntos de medida",
+    "Documents": "Documentos",
+    "All objects": "Todos los objetos",
+    # Objektarten/Fld GEN_NAME(!!!) in Tbl SYS_LOCTYPES
+    "Geotechnische Erkundung EN ISO 22475 (2018)": "Geotechnical investigation EN ISO 22475 (2018)",
+    # Messpunktarten/Fld INV_NAME(!!!) in Tbl SYS_INVTYPES
+    "Bohrehole": "Bohrehole",
+    "Filter": "Filter",
+    "Samples": "Samples",
+    # Sonstiges
+    "xxx": "xxx"
+}

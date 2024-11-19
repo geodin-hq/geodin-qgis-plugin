@@ -1,0 +1,81 @@
+{
+    "version":1,
+    "disable_existing_loggers": false,
+    "loggers": {
+        "GeODinQGIS" : {
+            "handlers" : ["hdl_file_debug", "hdl_file_error", "hdl_file_sql"],
+            "level": 1,
+            "propagate":false
+            },
+        "GeODinQGIS.fw.fg_res.Res": {
+            "handlers" : ["hdl_file_res"],
+        	"level": 1,
+            "propagate":true
+        	}
+        },
+    "handlers":{
+        "hdl_console":{
+            "formatter": "fmt_console",
+            "class": "logging.StreamHandler"
+        },
+        "hdl_file_debug": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "formatter": "fmt_file",
+            "filename": "%GEODINQGIS_LOG_FOLDER%\\gQGIS.debug.log",
+            "maxBytes": 1000000,
+            "backupCount": 3
+            },
+        "hdl_file_error": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "formatter": "fmt_file",
+            "filename": "%GEODINQGIS_LOG_FOLDER%\\gQGIS.error.log",
+            "maxBytes": 1000000,
+            "backupCount": 3,
+            "level": "ERROR"
+            },
+        "hdl_file_res": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "formatter": "fmt_file",
+            "filename": "%GEODINQGIS_LOG_FOLDER%\\gQGIS.RES.log",
+            "maxBytes": 1000000,
+            "backupCount": 3,
+            "level": "DEBUG"
+            },
+        "hdl_file_sql": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "formatter": "fmt_fileSQL",
+            "filename": "%GEODINQGIS_LOG_FOLDER%\\gQGIS.SQL.log",
+            "maxBytes": 1000000,
+            "backupCount": 3,
+            "level": "DEBUG",
+            "filters": ["filterSQL"]
+            }
+    },
+    "filters":{
+        "filterSQL": {
+            "()": "GeODinQGIS.LogFilterSQL"
+        }
+    },
+    "formatters":{
+        "fmt_console": {
+            "format": "%(asctime)s.%(msecs)03d %(levelname)-8s %(name)s.%(funcName)s (Z %(lineno)d) : (Process Details : (%(process)d, %(processName)s), Thread Details : (%(thread)d, %(threadName)s))\n\t%(message)s",
+            "datefmt":"%I:%M:%S"
+        },
+        "fmt_console_01": {
+            "format": "%(asctime)s.%(msecs)03d %(levelname)-8s : %(module)s : %(name)s : %(funcName)s : %(lineno)d : (Process Details : (%(process)d, %(processName)s), Thread Details : (%(thread)d, %(threadName)s))\n\t%(message)s",
+            "datefmt":"%I:%M:%S"
+        },
+        "fmt_file": {
+            "format": "%(asctime)s %(levelname)-8s %(name)s.%(funcName)s (Z %(lineno)d) \n\t%(message)s\n",
+            "datefmt": null
+            },
+        "fmt_fileSQL": {
+            "format": "%(asctime)s %(message)s\n",
+            "datefmt": null
+            },
+        "fmt_file_01": {
+            "format": "%(asctime)s %(levelname)-8s %(pathname)s, line %(lineno)4d, %(funcName)s() \n\t%(message)s\n",
+            "datefmt": null
+            }
+    }
+}

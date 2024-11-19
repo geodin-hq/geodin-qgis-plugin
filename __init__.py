@@ -21,7 +21,37 @@
  ***************************************************************************/
  This script initializes the plugin, making it known to QGIS.
 """
+__version__ = '3.0.22xx'
+__licens__ = '<your licence>'
+__maintainer_email__ = 'support@geodin.com'
+__url__ = 'www.geodin.com'
+import logging
+print("import GeODinQGIS Modul")
+##from fw.fg_logging import LogConfigurator
+##LogConfigurator.config()
 
+from pathlib import Path
+# Achtung, Reihenfolge beachten!!!
+#   1a) fw.fg_env und fw.fg_res importieren
+#   1b) globals env und res instanziieren
+#   2a) gqgis_app importieren
+#   2b) globlas app instanziieren
+from GeODinQGIS.fw.fg_logging import (
+    LogFormatterTrace
+)
+from GeODinQGIS.gqgis_config import (
+    LogFilterCOM,
+    LogFilterSQL,
+    LogFilterTRACE
+)
+from .fw import (
+    env,
+    res
+)
+from .gqgis_app import GQgis_App
+app = GQgis_App()
+
+from qgis import utils
 
 # noinspection PyPep8Naming
 def classFactory(iface):  # pylint: disable=invalid-name
@@ -30,6 +60,34 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
     """
-    #
-    from .GeODinQGIS import GeODinQGIS
-    return GeODinQGIS(iface)
+    print(__name__, 'importing...')
+    from .fw import LogConfigurator
+    LogConfigurator.config()
+    log = logging.getLogger('GeODinQGIS')
+    log.info('GeODinQGIS load')
+
+##    from .GeODinQGIS import GeODinQGIS
+##    return GeODinQGIS(iface)
+    from .gqgis import GQgis
+    return GQgis(iface)
+
+def name():
+    """Plugin name
+
+    27.04.2023 j.ebert
+    """
+    # __file__      <QGIS_PLUGINPATH>/<Plugin/Modul>/__init__.py
+    # __name__                        <Plugin/Modul>
+    return __name__
+
+def plugin():
+    """Plugin instance
+
+    exception:
+        KeyError                if GeODinQGIS Plugin ist not installed
+
+    27.04.2023 j.ebert
+    """
+    # __file__      <QGIS_PLUGINPATH>/<Plugin/Modul>/__init__.py
+    # __name__                        <Plugin/Modul>
+    return utils.plugins[__name__]

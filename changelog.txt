@@ -1,44 +1,4 @@
-Version 2.1 (2021-09-20):
--------------------------
-* Update to QGIS 3.*
+# Version __3.0.2335__ (01.09.2023)
 
-Version 1.2.2 (2019-02-04):
--------------------------
-* Bug fixes
+* Pre-Release GeODin Plugin für QGIS 3
 
-Version 1.2.1 (2018-09-18):
--------------------------
-* Oracle support added
-
-Version 1.2 (2018-08-03):
--------------------------
-* Bug fixes
-
-Version 1.1.5 (2017-11-02):
--------------------------
-* Bug fixes
-
-Version 1.1.4 (2017-10-05):
--------------------------
-* Troubleshooting
-
-Version 1.1.2 (2016-10-10):
--------------------------
-* Display Short name in coordinate table for the method "New Object"
-* Registry database load bug fixed
-* Load layouts with german letters in file path
-
-Version 1.1.1 (2016-06-24):
----------------------------
-* Check for Python version and give feedback
-* Catch pyodbc errors
-* Expand error log with Python version, GeODin Build number and ODBC errors
-* New icon for opened and closed databases
-* Catch error when selecting vector features outside of plugin
-
-
-Version 1.1 (2016-03-30):
----------------------------
-* Settings dialogue: repair switching between SQL and shape format
-* Settings dialogue: rename "rtbn_sql" to "rbtn_sql"
-* Settings dialogue: keep temporary files path

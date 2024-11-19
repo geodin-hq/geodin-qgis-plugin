@@ -1,0 +1,386 @@
+"""
+Classes:
+    GoNodeQuery                 - Query ViewModel/QTreeWidgetItem
+
+31.07.2023 j.ebert
+"""
+import json
+import logging
+import shutil
+import tempfile
+from pathlib import Path
+
+import qgis.core
+import qgis.utils
+from qgis.PyQt import (
+    QtCore,
+    QtWidgets
+)
+
+import GeODinQGIS.gqgis_config as gqc
+from GeODinQGIS import (
+    app
+)
+from GeODinQGIS.ui.gqgis_bas import (
+    cursor,
+    plugin,
+    GQgis_MsgBox as MsgBox
+)
+from GeODinQGIS.vm.bas_node import *
+
+class GoNodeQuery(GoNode):
+    """Project (GeODin Projekt) ViewModel/QTreeWidgetItem
+
+    28.07.2023 j.ebert
+    """
+
+    _GxSettings = {
+        'Default':      (20, ('gQry',), False),
+        'GxAllLOC':     (21, ('gTypLOC',), False),
+        'GxTypALL':     (21, ('gTypLOC',), False),
+        'GxTypLOC':     (22, ('gTypLOC',), False),
+        'GxTypINV':     (23, ('gTypINV',), False),
+        'GxQryLOC':     (24, ('gQry',), False),
+        'GxQryINV':     (24, ('gQry',), False),
+    }
+
+
+    def __init__(
+        self,
+        parent,                 # parent QTreeWidgetItem/Node
+        tag                     # data, DataModel object (GoBaseClass)
+    ):
+        super().__init__(parent, tag)
+        self.setText(self.textColumn(), self.tag().Label)
+        self.orderText()
+        self._DataPath = None
+
+    @property
+    def DataPath(self):
+        if not self._DataPath:
+            self._DataPath = Path(self.tag().dataSource())
+        return self._DataPath
+
+    @property
+    def QSleepTime(self):
+        """timer in millisecond
+
+        02.08.2023 j.ebert
+        """
+        return 100
+
+    def iconAlias(
+        self,
+        mode=0                  # alias index (0-normal|1-open)
+        ):
+        """retruns icon alias
+
+        01.06.2023 j.ebert
+        """
+##        self.log.log(gqc._LOG_TRACE, "")
+        names = self._GxSettings.get(self.tag().Kind, self._GxSettings['Default'])[1]
+        alias = names[mode] if mode < len(names) else names[0]
+        self.log.log(gqc._LOG_TRACE, alias)
+        return alias
+
+    def layers(self):
+        # https://gis.stackexchange.com/questions/211960/selecting-several-layers-programmatically-using-pyqgis
+        lyrs = []
+        if self.DataPath.exists():
+            # 08/2023 j.ebert, Anmerkung
+            #   Path(<filename>).samefile() verursacht einen FileNotFoundError, wenn
+            #   das Fiel <filename> nicht eixtiert, also bie not Path(<filename>).exists()
+            for lyr in qgis.core.QgsProject.instance().mapLayers().values():
+                if self.DataPath.samefile(lyr.source().split('|')[0]):
+                    lyrs.append(lyr)
+        else:
+            dataSource = str(self.DataPath).lower()
+            for lyr in qgis.core.QgsProject.instance().mapLayers().values():
+                if (lyr.source().split('|')[0].lower() == dataSource):
+                    lyrs.append(lyr)
+        return lyrs
+
+    def loadChildren(self):
+        """loads QTreeWidget child items
+
+        28.07.2023 j.ebert
+        """
+        return
+
+    def onContextMenu(self):
+        """returns QTreeWidget context menu
+
+        31.05.2023 j.ebert
+        """
+        self.log.log(gqc._LOG_TRACE,"")
+        # QMenu/Context-Menü instanziieren
+        menu = QtWidgets.QMenu()
+##        # QAction vom GeODin Projekt instanziieren und dem Menü hinzufügen
+##        action = menu.addAction(self.QIcon('GenericRefresh'), self.translate("Refresh..."))
+##        action.triggered.connect(self.onRefresh)
+##        action.setEnabled(False)
+####        if self._tag.isOpened():
+##        if self.isExpanded():
+##            action = menu.addAction(self.QIcon(self.iconAlias(0)), self.translate("Close..."))
+##            action.triggered.connect(self.onClose)
+##        else:
+##            # 07/2023 j.ebert, Anmerkung
+##            #   Zum Öffnen des Projektes nur den Konten/das QTreeWidgetItem aufklappen.
+##            action = menu.addAction(self.QIcon(self.iconAlias(1)), self.translate("Open..."))
+##            action.triggered.connect(lambda checked, expand=True: self.setExpanded(expand))
+##            action.setEnabled(not self._tag.isDisabled())
+        hasLyrs = bool(self.layers())
+        action = menu.addAction(self.translate("Add layer"))
+        action.triggered.connect(self.onLayerAdd)
+        action.setEnabled(not self._tag.isDisabled())
+        action = menu.addAction(self.translate("Zoom to"))
+        action.triggered.connect(self.onLayerZoomTo)
+        action.setEnabled((not self._tag.isDisabled()) and hasLyrs)
+        action = menu.addAction(self.translate("Select layer(s)"))
+        action.triggered.connect(self.onLayerSelect)
+        action.setEnabled((not self._tag.isDisabled()) and hasLyrs)
+        action = menu.addAction(self.translate("Update layer(s)"))
+        action.triggered.connect(self.onLayerUpdate)
+        action.setEnabled((not self._tag.isDisabled()) and hasLyrs)
+        action = menu.addAction(self.translate("Remove layer(s)"))
+        action.triggered.connect(self.onLayerRemove)
+        action.setEnabled((not self._tag.isDisabled()) and hasLyrs)
+        menu.addSeparator()
+        action = menu.addAction(self.translate("Remove"))
+        action.triggered.connect(self.onLayerRemove)
+        action.setEnabled(self.DataPath.exists() and (not hasLyrs))
+        menu.addSeparator()
+        action = menu.addAction(self.QIcon('gIcon'), self.translate("GeODin"))
+        action.triggered.connect(self.onGeODin)
+        action.setEnabled(not self._tag.isDisabled())
+        self.log.debug('ContextMenu (ActionCount %d) exce_', len(menu.actions()))
+        return menu
+
+    def onDoubleClicked(self):
+        """event function for QTreeWidget signal 'itemDoubleClicked'
+
+        15.06.2023 j.ebert
+        """
+        self.log.log(gqc._LOG_TRACE, "TRACE")
+        self.onLayerAdd()
+        return
+
+    def onGeODin(self):
+        """selects Database in the GeODin object manager
+
+        01.06.2023 j.ebert
+        """
+        self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)
+        try:
+            gx.gApp.selectObject(self._tag)
+        except gqb.GxGComException as exc:
+            self.tag()._error = "Query '%s' not found in GeODin object manager" % self.tag().Name
+            self.update()
+            MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+        except gqb.GxException as exc:
+            MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+        except Exception:
+            MsgBox.error(
+                plugin().parent(),
+                'GeODin',
+                self.translate("Unknown error on select query")
+            )
+        return
+
+    def onLayerAdd(self):
+        """updates query result/GEOJSON file
+
+        01.08.2023 j.ebert
+        """
+        self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)
+        # Abfrage im GOM selektieren...
+        self.onGeODin()
+        # DataSource der Abfrage aktualsieren...
+        try:
+            # DataSource der Abfrage/des Layers prüfen und ggf. erstellen...
+            if not self.DataPath.exists():
+                self.onLayerUpdate()
+            # QGIS Layer erstellen
+            newLyr = qgis.core.QgsVectorLayer(str(self.DataPath), self.tag().Name, "ogr")
+            # EPSG ermitteln...
+            # 01.03.2023 j.ebert, Anmerkung
+            #   Nach GeoJSON Specification (RFC 7946) ist kein CRS enhalten, sondern immer WGS 1983.
+            #   GeoJSON von GeODin enthält "gespeicherte" Koordinaten sowie das Feld EPSG.
+            # Fazit: EPSG aus dem Layer-Daten auslesen.
+            #   Wenn das Feld EPSG enthalten ist und gesetzt ist, dann diesen EPSG-Code nutzen.
+            #   Wenn mit diesem EPSG-Code ein CRS erstellt werden kann, dann dieses CRS nutzen.
+            #   Wenn kein CRS erstellt werden konnte, dann wird automatischn WGS 1984 genutzt.
+            newLyrEPSGFld = 'EPSG'
+            newLyrEPSGVal = ""
+            if newLyrEPSGFld in [fld.name() for fld in newLyr.fields()]:
+                newLyrEPSGVal = next(newLyr.getFeatures()).attribute(newLyrEPSGFld)
+            if newLyrEPSGVal:
+                newLyrCRS = qgis.core.QgsCoordinateReferenceSystem(f"EPSG:{newLyrEPSGVal}")
+                if newLyrCRS.isValid:
+                    newLyr.setCrs(newLyrCRS)
+            # QGIS Layer der akt. Map hizufügen
+            qgis.core.QgsProject.instance().addMapLayer(newLyr)
+        except gqb.GxException as exc:
+            self.log.debug("", exc_info=True)
+            MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+        except Exception:
+            self.log.debug("Major disaster...", exc_info=True)
+            MsgBox.error(
+                plugin().parent(),
+                'GeODin',
+                self.translate("Unknown error on update query")
+            )
+        return
+
+    def onLayerRemove(self):
+        """deletes query result/GEOJSON file and also layer
+
+        01.08.2023 j.ebert
+        """
+        self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)
+        # Abfrage im GOM selektieren...
+        self.onGeODin()
+        # DataSource der Abfrage aktualsieren...
+        dataPath = Path(self.tag().dataSource())
+        lyrs = []
+        try:
+            # Layer löschen...
+            lyrs = self.layers()
+            if lyrs:
+                qgis.core.QgsProject.instance().removeMapLayers([lyr.id() for lyr in lyrs])
+                QtWidgets.QApplication.processEvents()
+                plugin().iface().mapCanvas().refresh()
+            # DataSource löschen...
+            if self.DataPath.exists():
+                QtCore.QTimer.singleShot(self.QSleepTime, self._remove)
+            self.tag().isUsed(False)
+            self.log.debug("Remove query '%s' successfully", self.tag().Name)
+        except gqb.GxException as exc:
+            self.log.debug("", exc_info=True)
+            MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+        except Exception:
+            self.log.debug("Major disaster...", exc_info=True)
+            MsgBox.error(
+                plugin().parent(),
+                'GeODin',
+                self.translate("Unknown error on update query")
+            )
+        return
+
+    def onLayerSelect(self):
+        """select query layers
+
+        07.08.2023 j.ebert
+        """
+        self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)
+        lyrTvw = qgis.utils.iface.layerTreeView()
+        try:
+            lyrTvw.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection )
+            # Layer selektieren...
+            lyrs = self.layers()
+            for lyr in lyrs:
+                lyrTvw.setCurrentLayer(lyr)
+        except Exception:
+            self.log.debug("Major disaster...", exc_info=True)
+            MsgBox.error(
+                plugin().parent(),
+                'GeODin',
+                self.translate("Unknown error on select layers")
+            )
+        finally:
+            lyrTvw.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection )
+        return
+
+    def onLayerUpdate(self):
+        """updates query result/GEOJSON file
+
+        01.08.2023 j.ebert
+        """
+        self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)
+        # Abfrage im GOM selektieren...
+        self.onGeODin()
+        # DataSource der Abfrage aktualsieren...
+        dataPath = self.DataPath
+        try:
+            if not dataPath.exists():
+                self.log.debug("Create %s", str(dataPath))
+                gx.gApp.exportFeatureCollection(str(dataPath))
+                self.tag().isUsed(True)
+            else:
+                self.log.debug("Update %s", str(dataPath))
+                # https://gis.stackexchange.com/questions/159950/making-qgis-layer-update-from-changed-data-source
+                # General approach
+                #   If you have the possibility to control how the file is being overwritten
+                #   you can open the existing files with write permissions and change the content
+                #   instead of replacing the files completely (delete/recreate) on disk.
+                with tempfile.TemporaryFile(
+                    prefix=(dataPath.stem + '_'),
+                    suffix=dataPath.suffix,
+                    dir=dataPath.parent
+                ) as tempFile:
+                    tempPath = Path(tempFile.name)
+                gx.gApp.exportFeatureCollection(str(tempPath))
+                dataPath.write_text(tempPath.read_text())
+                tempPath.unlink()
+            self.log.debug("Update %s successfully", str(dataPath))
+            # Layer der Query "aktualisieren"...
+            for lyr in self.layers():
+##                lyr.dataProvider().reloadData()
+                lyr.reload()
+            QtWidgets.QApplication.processEvents()
+            # .refresh()            - repaints the canvas map
+            # .refreshAllLayers()   - reloads all layers, clear the cache and refresh the canvas
+##            plugin().iface().mapCanvas().refresh()
+##            plugin().iface().mapCanvas().refreshAllLayers()
+        except gqb.GxException as exc:
+            self.log.debug("", exc_info=True)
+            MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+        except Exception:
+            self.log.debug("Major disaster...", exc_info=True)
+            MsgBox.error(
+                plugin().parent(),
+                'GeODin',
+                self.translate("Unknown error on update query")
+            )
+        return
+
+    def onLayerZoomTo(self):
+        self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)
+        lyrs = self.layers()
+        if lyrs:
+            try:
+                extent = qgis.core.QgsRectangle()
+                for lyr in lyrs:
+                    extent.combineExtentWith(lyr.extent())
+                extent.scale(1.1)
+                qgis.utils.iface.mapCanvas().setExtent(extent)
+                qgis.utils.iface.mapCanvas().refresh()
+            except:
+                self.log.error("Unkown error in onLayerZoomTo()...", exc_info=True)
+        return
+
+    def orderIndex(self):
+        """returns QTreeWidgetItem class index for sorting QTreeWidget
+
+        01.06.2023 j.ebert
+        """
+        self.log.log(gqc._LOG_TRACE, "")
+        idx = self._GxSettings.get(self.tag().Kind, self._GxSettings['Default'])[0]
+        return idx
+
+    def _remove(self):
+        # DataSource löschen...
+        if self.DataPath.exists():
+            self.log.debug("Remove %s", str(self.DataPath))
+            self.DataPath.unlink()
+
+    def _update(self):
+        # https://gis.stackexchange.com/questions/194867/refreshing-mapcanvas-while-pyqgis-script-is-running
+        pass
+
+
+def main():
+    pass
+
+if __name__ == '__main__':
+    main()
