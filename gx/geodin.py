@@ -917,8 +917,8 @@ class GxSQL:
     def _connect4MSSQL(
         cls,
         gDB,                    # GoDatabase
-        usr="",                 # database login user
-        pwd=""                  # database login password
+        usr=None,               # database login user
+        pwd=None                # database login password
     ):
         # seealso:
         #   https://docwiki.embarcadero.com/RADStudio/Sydney/en/Defining_Connection_(FireDAC)

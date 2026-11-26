@@ -390,8 +390,8 @@ class GoDatabase(bas.GoBaseClass):
 
     def open(
         self,
-        usr="",
-        pwd=""
+        usr=None,
+        pwd=None
     ):
         """opens gDB
 

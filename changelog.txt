@@ -1,3 +1,8 @@
+# Version __4.0.1.2648__ (11/2026)
+
+* Bug fixing
+  * no empty default passwords in the code (security scan of plugins.qgis.org)
+
 # Version __4.0.0.2644__ (10/2026)
 
 * Changes
