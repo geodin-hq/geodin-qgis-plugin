@@ -8,6 +8,7 @@ Classes:
 """
 import json
 import logging
+import os
 import random
 import re
 
@@ -185,10 +186,27 @@ class GxCOMClient(GxBaseCOMClient):
                             "Error on DatabaseSettingsList: Idx %2d ('%s'), Prm '%s'",
                             idx, dbSettinngs.get("DisplayName",""), key
                         )
+##            if errorOnRequiredPrms:
+##                # Wenn ein Fehler bei den erforderlichen Paramtern gefunden wurde,
+##                # dann mit Exception abbrechen...
+##                raise gqb.GxGComResError("Error on DatabaseSettingsList (%s)", "Prms")
+            # 11/2026 skip invalid database entries instead of aborting the whole list
+            #   (one faulty connection in GeoDin, e.g. without ConnectionString, made it
+            #   impossible to open any database in the plugin)
+            self.skippedDatabases = []
             if errorOnRequiredPrms:
-                # Wenn ein Fehler bei den erforderlichen Paramtern gefunden wurde,
-                # dann mit Exception abbrechen...
-                raise gqb.GxGComResError("Error on DatabaseSettingsList (%s)", "Prms")
+                valid = []
+                for dbSettinngs in lst:
+                    if dbSettinngs.get("DisplayName") and dbSettinngs.get("ConnectionString"):
+                        valid.append(dbSettinngs)
+                    else:
+                        self.skippedDatabases.append(
+                            dbSettinngs.get("DisplayName") or "<%s>" % ("no name")
+                        )
+                self.log.warning(
+                    "DatabaseSettingsList: invalid entries skipped: %s", self.skippedDatabases
+                )
+                lst = valid
             # optionale Parameter...
             #   "AutoOpen"                -> default: False
             #   "HideLocationTypes"       -> default: False
@@ -235,6 +253,27 @@ class GxCOMClient(GxBaseCOMClient):
         self.log.log(gqc._LOG_TRACE, "")
         return GxSQL.connect(gDB, usr, pwd)
 
+    def systemQueries(self, reload=False):
+        """returns the GeoDin system queries (*.GSQ in <ProgramData>\\QUERYDEF\\, 11/2026)
+
+        returns:
+            list of dict {'Name', 'Grp' (LOC|INV), 'File'} (see gx.sysquery), [] on error
+        """
+        if (not reload) and (getattr(self, '_SystemQueries', None) is not None):
+            return self._SystemQueries
+        from .sysquery import systemQueries
+        res = []
+        try:
+            excVal, progData = self._gApp._gCOM_ProgramData()
+            if (not excVal) and bool(progData):
+                res = systemQueries(os.path.join(progData, "QUERYDEF"))
+            else:
+                self.log.error("Load ProgramDataFolder failed\n\tExcVal %s: '%s'", excVal, progData)
+        except Exception:
+            self.log.error("Load system queries failed", exc_info=True)
+        self._SystemQueries = res
+        return res
+
     def loadSYSALIAS(self):
         """loads SYSALIAS dictionary from GeODin configuration
 
@@ -267,6 +306,7 @@ class GxCOMClient(GxBaseCOMClient):
         12.06.2023 j.ebert
         """
         self.log.log(gqc._LOG_TRACE,"")
+        self._SystemQueries = None   # 11/2026: reload system queries of this GeoDin
         return self._gApp.open(appFolder)
 
     def renew(self):
@@ -341,6 +381,59 @@ class GxCOMClient(GxBaseCOMClient):
             raise
         return
 
+    # 10/2026: GeoDin method 'edit object data' (base editor) and its EditType
+    METHOD_EDIT_OBJECT_DATA = 1
+    EDIT_TYPE_OBJECT_DATA = 1
+
+    def editObjectData(self, editType=EDIT_TYPE_OBJECT_DATA):
+        """opens the object data (base editor) of the selected object in GeoDin
+
+        10/2026
+        """
+        self.log.log(gqc._LOG_TRACE,"")
+        try:
+            self._gApp._gCOM_ExecuteMethodParams(
+                self.METHOD_EDIT_OBJECT_DATA, f"EditType={editType}"
+            )
+        except gqb.GxException:
+            raise
+        except Exception:
+            self.log.critical("Major disaster...", exc_info=True)
+            raise
+        return
+
+    METHOD_GRAPHIC = 2
+
+    def executeMethod(self, methodID, prms=""):
+        """executes a GeoDin method at the selected GOM node (see GEODIN_COM.md)
+
+        10/2026
+        """
+        self.log.log(gqc._LOG_TRACE,"")
+        try:
+            self._gApp._gCOM_ExecuteMethodParams(methodID, prms)
+        except gqb.GxException:
+            raise
+        except Exception:
+            self.log.critical("Major disaster...", exc_info=True)
+            raise
+        return
+
+    def showGraphic(self):
+        """opens the graphic window ('Print and edit graphics') of the selected object in GeoDin
+
+        10/2026
+        """
+        self.log.log(gqc._LOG_TRACE,"")
+        try:
+            self._gApp._gCOM_ExecuteMethodParams(self.METHOD_GRAPHIC, "")
+        except gqb.GxException:
+            raise
+        except Exception:
+            self.log.critical("Major disaster...", exc_info=True)
+            raise
+        return
+
     def exportFeatureCollection(
         self,
         filename
@@ -367,8 +460,48 @@ class GxCOMClient(GxBaseCOMClient):
                 prms = item.prmsSelectObject()
             if isinstance(expand, bool):
                 prms['Expand'] = str(expand).lower()
-            prms = '[Params]\n%s' % "\n".join(["%s=%s" % (key, val) for key, val in prms.items()])
-            res = self._gApp._gCOM_SelectObject(prms)
+            # prms = '[Params]\n%s' % "\n".join(["%s=%s" % (key, val) for key, val in prms.items()])
+            # res = self._gApp._gCOM_SelectObject(prms)
+            # 10/2026: names from the database may contain several spaces in a row (e.g.
+            #   'samples  (geot. borehole)'), the GeoDin object manager shows them with one
+            #   space -> 'not found'; then select again with the normalized name
+            # 10/2026: alternative names of the query in the GeoDin object manager
+            #   (GoQuery.gomLabelCandidates), keys with '_' are not passed to GeoDin
+            prms = dict(prms)
+            candidates = list(prms.pop('_QueryCandidates', None) or [])
+            goQry = prms.pop('_GoQuery', None)
+            query = str(prms.get('Query', "") or "")
+            if query:
+                normalized = " ".join(query.split())
+                if normalized not in candidates:
+                    candidates.append(normalized)
+            if goQry is not None and getattr(goQry, '_GOMLabel', None):
+                prms['Query'] = goQry._GOMLabel
+            txt = '[Params]\n%s' % "\n".join(["%s=%s" % (key, val) for key, val in prms.items()])
+            try:
+                res = self._gApp._gCOM_SelectObject(txt)
+            except gqb.GxGComException as firstExc:
+                if not query:
+                    raise
+                res = None
+                for name in candidates:
+                    if name == prms.get('Query'):
+                        continue
+                    self.log.info("Query '%s' not found, select again as '%s'", prms.get('Query'), name)
+                    tryPrms = dict(prms, Query=name)
+                    txt = '[Params]\n%s' % "\n".join(["%s=%s" % (key, val) for key, val in tryPrms.items()])
+                    try:
+                        res = self._gApp._gCOM_SelectObject(txt)
+                    except gqb.GxGAppBusyError:
+                        raise
+                    except gqb.GxGComException:
+                        continue
+                    if goQry is not None:
+                        goQry._GOMLabel = name
+                    self.log.info("Query '%s' selected as '%s' in GeoDin", query, name)
+                    break
+                else:
+                    raise firstExc
         except gqb.GxException:
             raise
         except Exception:
@@ -406,7 +539,7 @@ class GxCOMClient(GxBaseCOMClient):
         try:
             # Paramter aus GeODin Configuration übernehmen...
             prps['connectionstring'] = settings['ConnectionString']
-            prps['schema'] = settings['Schema']
+            prps['schema'] = settings.get('Schema', '')
             # GeODin ConnectionString analysieren/splitten....
             pattern = re.compile(r'''
                 ([\w]+)     # group 1/key - Zeichen von a-z, A-Z oder 0-9 oder Unterstrich
@@ -416,8 +549,20 @@ class GxCOMClient(GxBaseCOMClient):
             for match in re.finditer(pattern, prps['connectionstring']):
                 # 08/2023 j.ebert, führende und abschließende Leerzeichen beim Prm-Wert entfernen!?
                 prps[match.group(1).lower()] = match.group(2).strip()
-            prps['driverid'] = prps['driverid'].upper()
+            # 10/2026: an invalid connection string (e.g. without DriverID) must not abort
+            #   the GeoDin connection -> only this database is marked as invalid
+            prps['driverid'] = prps.get('driverid', '').upper()
             self.log.debug(json.dumps(prps, indent=4).replace('\n','\n\t'))
+            if not prps['driverid']:
+                prps['error'] = gqb.res.translate(
+                    self._context,
+                    "Invalid connection string (DriverID missing)"
+                )
+                self.log.warning(
+                    "Database '%s': invalid connection string (DriverID missing)",
+                    settings.get('DisplayName', '')
+                )
+                return prps
             # Parameter für Plugin Connection validieren...
             # - Default ErrorMessage setzen...
             #   Default: Datenbank vom Typ (bzw. mit FireDAC-DirverID) wird nicht unterstützt

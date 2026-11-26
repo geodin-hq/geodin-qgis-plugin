@@ -118,11 +118,13 @@ class GoNodeDatabase(bas.GoNode):
         action = menu.addAction(self.QIcon('GenericDelete'), self.translate("Remove..."))
         action.triggered.connect(self.onRemove)
         menu.addSeparator()
-        action = menu.addAction(self.QIcon('GenericRefresh'), self.translate("Update queries"))
+        # 10/2026: menu text 'Update queries' -> 'Update layer data' (the action exports the data
+        #   of the queries that already have a layer again; it does not reload the queries)
+        action = menu.addAction(self.QIcon('GenericRefresh'), self.translate("Update layer data"))
         action.triggered.connect(self.onUpdateGoQrys)
         action.setEnabled(self._tag.isOpened() and bool(self._presentQrys))
         menu.addSeparator()
-        action = menu.addAction(self.QIcon('gIcon'), self.translate("GeODin"))
+        action = menu.addAction(self.QIcon('gIcon'), self.translate("Show in GeoDin"))
         action.triggered.connect(self.onGeODin)
         action.setEnabled(not self._tag.isDisabled())
         self.log.debug('ContextMenu (ActionCount %d) exce_', len(menu.actions()))
@@ -144,11 +146,11 @@ class GoNodeDatabase(bas.GoNode):
                 self.takeChildren()
                 self._addDummyChild()
         except gqb.GxException as exc:
-            MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+            MsgBox.error(plugin().parent(), 'GeoDin', exc.msg())
         except Exception:
             MsgBox.error(
                 plugin().parent(),
-                'GeODin',
+                'GeoDin',
                 self.translate("Unknown error on close database")
             )
         finally:
@@ -187,6 +189,12 @@ class GoNodeDatabase(bas.GoNode):
         """
         self.log.log(gqc._LOG_TRACE,"")
         try:
+            # 10/2026: misconfigured database (e.g. file not found) -> do not try to open
+            #   it and do not ask for a login, show the error instead
+            if self._tag.isDisabled():
+                raise gqb.GxSQLCnnError(
+                    "Database '%s' cannot be opened:\n%s", self._tag.Name, self._tag.Info
+                )
             try:
                 # Datenbank öffnen
                 self._tag.open()
@@ -200,7 +208,7 @@ class GoNodeDatabase(bas.GoNode):
                     dbPassword="",
                     parent=None
                 )
-                if dlg.exec_():
+                if dlg.exec():
                     # Wenn Login-Dialog nicht vom Nutzer abgebrochen wurde,
                     # dann erneuter Versuch mit Login-Eingabe vom Nutzer
                     usr, pwd = dlg.login()
@@ -213,12 +221,12 @@ class GoNodeDatabase(bas.GoNode):
             self.log.warning(
                 "Database '%s' could not be opened\n\t%s", self._tag.Name, exc.msg()
             )
-            MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+            MsgBox.error(plugin().parent(), 'GeoDin', exc.msg())
         except Exception:
             self.log.critical( "Major disaster...", exc_info=True )
             MsgBox.error(
                 plugin().parent(),
-                'GeODin',
+                'GeoDin',
                 self.translate("Unknown error on open database")
             )
         finally:
@@ -287,7 +295,7 @@ class GoNodeDatabase(bas.GoNode):
             MsgBox.error(
                 plugin().parent(),
                 '',
-                self.translate("Unknown error on update queries")
+                self.translate("Unknown error on update layer data")
             )
         return
 

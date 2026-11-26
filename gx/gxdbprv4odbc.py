@@ -102,19 +102,19 @@ class GxDbProvider4MSACC (GxDbProvider4ODBC):
             self.log.debug(
                 "cnnPrps = %s\n\tcnnPrms = %s\n\tcnnStr = \"%s\"",
                 re.sub(
-                    "\"password\": \"\S+\"",
+                    "\"password\": \"\\S+\"",
                     "\"password\": \"%s\"" % self.hiddenPwd(),
                     json.dumps(self._Parent._CnnPrps, indent=4).replace("\n", "\n\t"),
                     re.IGNORECASE
                 ),
                 re.sub(
-                    "\"PWD=\S+\"",
+                    "\"PWD=\\S+\"",
                     "\"PWD=%s\";" % self.hiddenPwd(),
                     json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
                     re.IGNORECASE
                 ),
                 re.sub(
-                    "PWD=\S+;",
+                    "PWD=\\S+;",
                     "PWD=%s;" % self.hiddenPwd(),
                     cnnStr,
                     re.IGNORECASE
@@ -225,19 +225,19 @@ class GxDbProvider4MSSQL (GxDbProvider4ODBC):
             self.log.debug(
                 "cnnPrps = %s\n\tcnnPrms = %s\n\tcnnStr = \"%s\"",
                 re.sub(
-                    "\"password\": \"\S+\"",
+                    "\"password\": \"\\S+\"",
                     "\"password\": \"%s\"" % self.hiddenPwd(),
                     json.dumps(self._Parent._CnnPrps, indent=4).replace("\n", "\n\t"),
                     re.IGNORECASE
                 ),
                 re.sub(
-                    "\"PWD=\S+\"",
+                    "\"PWD=\\S+\"",
                     "\"PWD=%s\";" % self.hiddenPwd(),
                     json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
                     re.IGNORECASE
                 ),
                 re.sub(
-                    "PWD=\S+;",
+                    "PWD=\\S+;",
                     "PWD=%s;" % self.hiddenPwd(),
                     cnnStr,
                     re.IGNORECASE

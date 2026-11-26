@@ -41,8 +41,8 @@ class GQgis_Dlg_Info(QtWidgets.QDialog, GQgis_Bas_Widget):
         self.log.debug("translate in context '%s'", self._context)
         # translate Ui/QWidget
         try:
-            self.setWindowTitle(self.trans("GeODinQGIS - About"))
-            self.ui.labelAbout.setText(self.trans("GeODinQGIS   %s") % app.Version)
+            self.setWindowTitle(self.trans("About GeoDinQGIS"))  # 10/2026, before: "GeoDinQGIS - About"
+            self.ui.labelAbout.setText(self.trans("GeoDinQGIS   %s") % app.Version)
         except:
 ##            self.log.error(self.ui.__dir__())
             self.log.error("", exc_info=True)

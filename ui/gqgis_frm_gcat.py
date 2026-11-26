@@ -43,15 +43,15 @@ class GQgis_Frm_GCat(qgis.gui.QgsDockWidget, GQgis_Bas_Widget):
     _WARNING = 30
     _ERROR = 40
 
-    def __new__(cls, parent):
-        if not hasattr(cls, 'instance'):
-            cls.instance = super(GQgis_Frm_GCat, cls).__new__(cls)
-            cls.log.debug("initialized")
-        cls.log.log(gqc._LOG_TRACE,"")
-        return cls.instance
+    # 10/2026, QGIS 4: PyQt6/sip crashes (segfault) if __new__ of a Qt class is overridden,
+    #   so the singleton is no longer implemented via __new__
+    #   singleton instance is registered in __init__() as class attribute 'instance',
+    #   the instance is only created once in showAction()
 
     def __init__(self, parent):
         super().__init__(parent)
+        GQgis_Frm_GCat.instance = self
+        self.log.debug("initialized")
 ##        self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.log.log(gqc._LOG_TRACE,"")
         self._context = CONTEXT_RES
@@ -60,7 +60,9 @@ class GQgis_Frm_GCat(qgis.gui.QgsDockWidget, GQgis_Bas_Widget):
         self.ui = Ui_GQgis_Frm_GCat()
         self.ui.setupUi(self)
         # initialize...
-        self.ui.treeWidget.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.ui.treeWidget.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
+        # 10/2026: only one node can be selected (set explicitly, see also GoNode.onExpanded())
+        self.ui.treeWidget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
         # 05/2023 j.ebert, Anmerkung
         # - Im Qt Designer default SelectionMode 'SingleSelection'
         #   -> SelectionMode 'SingleSelection' muss nicht zwingend gesetzt werden
@@ -94,10 +96,10 @@ class GQgis_Frm_GCat(qgis.gui.QgsDockWidget, GQgis_Bas_Widget):
         self.log.debug("translate in context '%s'", self._context)
         # translate Ui/QWidget
         try:
-            self.setWindowTitle(self.trans("GeODinQGIS - Explorer"))
+            self.setWindowTitle(self.trans("GeoDinQGIS - Explorer"))
             if hasattr(self, '_showAction'):
-                self._showAction.setText(self.trans("GeODinQGIS Explorer"))
-                self._showAction.setToolTip(self.trans("GeODinQGIS Explorer"))
+                self._showAction.setText(self.trans("GeoDinQGIS Explorer"))
+                self._showAction.setToolTip(self.trans("GeoDinQGIS Explorer"))
         except:
             self.log.error("", exc_info=True)
         return
@@ -154,13 +156,19 @@ class GQgis_Frm_GCat(qgis.gui.QgsDockWidget, GQgis_Bas_Widget):
         31.05.2023 j.ebert
         """
         menu = None
-        item = self.onSelected()
+        # 10/2026: use the node under the mouse and make it the selected node,
+        #   so the context menu always belongs to the node that was right-clicked
+        item = self.ui.treeWidget.itemAt(position)
+        if isinstance(item, vm.GoNode):
+            self.ui.treeWidget.setCurrentItem(item)
+        else:
+            item = self.onSelected()
         if item:
             menu = item.onContextMenu()
             self.log.debug(
                 "%s context menu (%d actions)...", type(item).__name__, len(menu.actions())
             )
-            menu.exec_(self.ui.treeWidget.viewport().mapToGlobal(position))
+            menu.exec(self.ui.treeWidget.viewport().mapToGlobal(position))
         return menu
 
     def onCollapsed(self, item):
@@ -190,6 +198,24 @@ class GQgis_Frm_GCat(qgis.gui.QgsDockWidget, GQgis_Bas_Widget):
            item.onDoubleClicked()
         return
 
+    @staticmethod
+    def _dockExplorer(frm):
+        """adds the Explorer to the left dock area of the QGIS main window (hidden at start)
+
+        QGIS restores a position the user chose (objectName GQgis_Frm_GCat).
+
+        10/2026
+        """
+        try:
+            import qgis.utils
+            iface = qgis.utils.iface
+            if iface is None:
+                return
+            iface.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, frm)
+            frm.hide()
+        except Exception:
+            frm.log.error("Explorer could not be added to the QGIS dock area", exc_info=True)
+
     @classmethod
     def showAction(
         cls,
@@ -203,10 +229,19 @@ class GQgis_Frm_GCat(qgis.gui.QgsDockWidget, GQgis_Bas_Widget):
         """
         if not hasattr(cls, '_showAction'):
             frm = cls(parent)
+            # 10/2026: add the Explorer to the dock area of the QGIS main window (hidden).
+            #   Before, the QgsDockWidget was only a child of the main window: at the first start
+            #   it was shown at the top left of the main window without its own title bar
+            #   (title overlapped the QGIS window), only after docking/undocking it had a header.
+            #   Default: left dock area; a position the user chose is restored by QGIS.
+            cls._dockExplorer(frm)
             cls._showAction = frm.toggleViewAction()
             cls._showAction.log = logging.getLogger(f"{__name__}.GQgis_Act_GCat")
             cls._showAction.setObjectName('GQgis_Act_GCat')
             cls._showAction.setIcon(frm.QIcon("gExplorer"))
+            # 10/2026: the same action is listed in QGIS View » Panels - show the check mark there,
+            #   not the icon (the icon replaced the check mark, the state was not visible)
+            cls._showAction.setIconVisibleInMenu(False)
             # Funktion _showAction_updateUi an Instanz _showAction 'binden' als Methode updateUi()
             # https://stackoverflow.com/questions/972/adding-a-method-to-an-existing-object-instance-in-python
             cls._showAction.updateUi = types.MethodType(_showAction_updateUi, cls._showAction)
@@ -221,8 +256,8 @@ class GQgis_Frm_GCat(qgis.gui.QgsDockWidget, GQgis_Bas_Widget):
             else:
                 # oder die Texte von _showAction hier setzen,
                 # dann ist das setzen der Texte redundant in GQgis_Frm_GCat.translateUi() und hier
-                cls._showAction.setText(frm.trans("GeODinQGIS Explorer"))
-                cls._showAction.setToolTip(frm.trans("GeODinQGIS Explorer"))
+                cls._showAction.setText(frm.trans("GeoDinQGIS Explorer"))
+                cls._showAction.setToolTip(frm.trans("GeoDinQGIS Explorer"))
         cls._showAction.log.log(gqc._LOG_TRACE,"")
         return cls._showAction
 

@@ -3,7 +3,7 @@
 """
 __version__ = '0.1.0'
 __author__ = 'J. Ebert'
-__licens__ = '<your licence>'
+__license__ = 'GPL-2.0-or-later'
 __author_email__ = 'J.Ebert@fugro.com'
 __maintainer_email__ = 'support@geodin.com'
 __url__ = 'www.geodin.com'
@@ -241,7 +241,44 @@ class LogConfigurator:
         dictConfig = cls.load_jsonConfig()
         cls.make_log_folders(dictConfig)
         logging.config.dictConfig(dictConfig)
+        cls.mask_passwords()
         return
+
+    @classmethod
+    def mask_passwords(cls):
+        loggers = [logging.getLogger()] + [
+            lgr for lgr in logging.Logger.manager.loggerDict.values() if isinstance(lgr, logging.Logger)
+        ]
+        for lgr in loggers:
+            for hdl in lgr.handlers:
+                if not isinstance(hdl.formatter, LogFormatterMasked):
+                    hdl.setFormatter(LogFormatterMasked(hdl.formatter or logging.Formatter()))
+
+
+_MASK = '*****'
+_PASSWORD_PATTERNS = [
+    (re.compile(r'''\b(\w*(?:password|pwd)\s*=\s*)(?:\{[^}]*\}|[^;'"\r\n]*)''', re.IGNORECASE), rf'\g<1>{_MASK}'),
+    (re.compile(r'''(["']\w*(?:password|pwd)\w*["']\s*:\s*)"(?:[^"\\]|\\.)*"''', re.IGNORECASE), rf'\g<1>"{_MASK}"'),
+    (re.compile(r'''(["']\w*(?:password|pwd)\w*["']\s*:\s*)'(?:[^'\\]|\\.)*\'''', re.IGNORECASE), rf"\g<1>'{_MASK}'"),
+    (re.compile(r'''(\w+://[^:/\s@]+:)[^@\s/]+(?=@)'''), rf'\g<1>{_MASK}'),
+]
+
+
+def maskPasswords(text):
+    for pattern, replacement in _PASSWORD_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
+class LogFormatterMasked(logging.Formatter):
+    """replaces passwords (connection strings, JSON and dict values) in every formatted log record"""
+
+    def __init__(self, formatter):
+        super().__init__()
+        self._formatter = formatter
+
+    def format(self, record):
+        return maskPasswords(self._formatter.format(record))
 
 class LogFilterByLevel(logging.Filter):
     """Logging filer by Level number
@@ -322,7 +359,7 @@ def listLogFolders(
     prefix=""
 ):
     assert isinstance(prefix, str)
-    return list(set([Path(name).parent for name in logfiles(prefix)]))
+    return list(set([Path(name).parent for name in listLogFiles(prefix)]))
 
 def zipLogFiles(
     prefix="",

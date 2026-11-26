@@ -16,6 +16,7 @@ from qgis.PyQt import (
     QtWidgets
 )
 
+import GeODinQGIS.gqgis_base as gqb
 import GeODinQGIS.gqgis_config as gqc
 import GeODinQGIS.vm.bas_node as bas
 from GeODinQGIS import (
@@ -91,15 +92,55 @@ class GoNodeProject(bas.GoNode):
             action.triggered.connect(lambda checked, expand=True: self.setExpanded(expand))
             action.setEnabled(not self._tag.isDisabled())
         menu.addSeparator()
-        action = menu.addAction(self.QIcon('GenericRefresh'), self.translate("Update queries"))
+        # 10/2026: menu text 'Update queries' -> 'Update layer data' (the action exports the data
+        #   of the queries that already have a layer again; it does not reload the queries)
+        action = menu.addAction(self.QIcon('GenericRefresh'), self.translate("Update layer data"))
         action.triggered.connect(self.onUpdateGoQrys)
         action.setEnabled(not self._tag.isDisabled() and bool(self._presentQrys))
+        # 10/2026: reload the queries (object types, measurement point types, number of objects)
+        action = menu.addAction(self.QIcon('GenericRefresh'), self.translate("Refresh"))
+        action.triggered.connect(self.onRefresh)
+        action.setEnabled(not self._tag.isDisabled() and not self.hasDummyChild())
         menu.addSeparator()
-        action = menu.addAction(self.QIcon('gIcon'), self.translate("GeODin"))
+        action = menu.addAction(self.QIcon('gIcon'), self.translate("Show in GeoDin"))
         action.triggered.connect(self.onGeODin)
         action.setEnabled(not self._tag.isDisabled())
         self.log.debug('ContextMenu (ActionCount %d) exce_', len(menu.actions()))
         return menu
+
+    def onRefresh(self):
+        """reloads the queries of the project from the GeoDin database and rebuilds the child nodes
+
+        The query nodes are created again (new object/measurement point types, number of
+        objects/measurement points); expanded groups stay expanded. Existing QGIS layers are
+        not changed (see 'Update layer data').
+
+        10/2026
+        """
+        self.log.log(gqc._LOG_TRACE, "")
+        if self.hasDummyChild():
+            # children not loaded yet -> they are loaded when the project is expanded
+            return
+        try:
+            with cursor(QtCore.Qt.CursorShape.WaitCursor):
+                expanded = [
+                    type(self.child(i)).__name__ for i in range(self.childCount())
+                    if self.child(i).isExpanded()
+                ]
+                self.takeChildren()
+                self.loadChildren()
+                for i in range(self.childCount()):
+                    child = self.child(i)
+                    if type(child).__name__ in expanded:
+                        # expanding a group loads its query nodes (DummyChild, see GoNode.onExpanded())
+                        child.setExpanded(True)
+                if self.treeWidget() is not None:
+                    self.treeWidget().setCurrentItem(self)
+        except Exception:
+            self.log.error("Unknown error on refresh project", exc_info=True)
+            MsgBox.error(plugin().parent(), self.translate("Refresh"),
+                         self.translate("Unknown error on refresh project"))
+        return
 
     def onClose(self):
         """opens Database/QTreeWidgetItem
@@ -135,7 +176,7 @@ class GoNodeProject(bas.GoNode):
             MsgBox.error(
                 plugin().parent(),
                 '',
-                self.translate("Unknown error on update queries")
+                self.translate("Unknown error on update layer data")
             )
         return
 
@@ -161,7 +202,7 @@ class GoNodeGrpLOC(bas.GoNode):
         self.log.log(gqc._LOG_TRACE,"gDB '%s' (PrjID '%s')...", self.DbRef.Name, self.PrjID)
         for qry in self.DbRef.list_GrpLOC(self.PrjID):
             nodeQry = GoNodeQuery(self, qry)
-        self.sortChildren(self.orderColumn(), QtCore.Qt.AscendingOrder)
+        self.sortChildren(self.orderColumn(), QtCore.Qt.SortOrder.AscendingOrder)
         return
 
 
@@ -188,7 +229,7 @@ class GoNodeGrpINV(bas.GoNode):
         for qry in self.DbRef.list_GrpINV(self.PrjID):
             self.log.debug(str(qry))
             nodeQry = GoNodeQuery(self, qry)
-        self.sortChildren(self.orderColumn(), QtCore.Qt.AscendingOrder)
+        self.sortChildren(self.orderColumn(), QtCore.Qt.SortOrder.AscendingOrder)
         return
 
 
@@ -227,7 +268,7 @@ class GoNodeGrpADC(bas.GoNode):
                 )
             for lnk in lnks:
                 nodeLnk = GoNodeLnkADC(self, lnk)
-            self.sortChildren(self.orderColumn(), QtCore.Qt.AscendingOrder)
+            self.sortChildren(self.orderColumn(), QtCore.Qt.SortOrder.AscendingOrder)
         return
 
 class GoNodeLnkADC(bas.GoNode):
@@ -269,7 +310,8 @@ class GoNodeLnkADC(bas.GoNode):
         menu = QtWidgets.QMenu()
         # QAction der Datenbank instanziieren und dem Menü hinzufügen
 ##        action = menu.addAction(self.QIcon('GenericRefresh'), self.translate("Add layer..."))
-        action = menu.addAction(self.translate("Add layer..."))
+        # 10/2026: 'Add layer...' -> 'Add layer' (no dialog follows)
+        action = menu.addAction(self.translate("Add layer"))
         action.triggered.connect(self.onDoubleClicked)
         action.setEnabled(not self.tag().isDisabled())
         return menu

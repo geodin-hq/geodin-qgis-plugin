@@ -236,7 +236,7 @@ class GxDDX:
             dbRefs = [item for item in self.Databases if item._Desc == srcPath.parent.stem]
             if not dbRefs:
                 raise gqb.GxDDXException(
-                    "Database (Desc '%s') not defined\n\Obsolete data source: '%s'",
+                    "Database (Desc '%s') not defined\n\\Obsolete data source: '%s'",
                     srcPath.parent.stem, dataSource
                 )
             dbRef = dbRefs[0]
@@ -303,7 +303,7 @@ class GxDDX:
             dbRefs = [item for item in self.Databases if item._Desc == srcPath.parent.stem]
             if not dbRefs:
                 exc = gqb.GxDDXException(
-                    "Database (Desc '%s') not defined\n\Obsolete data source: '%s'",
+                    "Database (Desc '%s') not defined\n\\Obsolete data source: '%s'",
                     srcPath.parent.stem, dataSource
                 )
             else:
@@ -327,7 +327,7 @@ class GxDDX:
                         ])
                     ):
                         exc = gqb.GxDDXException(
-                            "Project ID '%s' not found in database '%s'", gxPrms[1], dbRef.Name
+                            "Project ID '%s' not found in database '%s'", qry.PrjID, dbRef.Name
                         )
         return exc, qry
 
@@ -696,7 +696,7 @@ class GxDDX:
                 tmpPath.rename(ddxFile)
         except:
             self.log.critical(
-                "DDX-File '%s' could not be updated\n\tDDX-File: %s\n\tfilename: \n\tdata:     \n",
+                "DDX-File '%s' could not be updated\n\tfilename: %s\n\tdata:     %s\n",
                 self.File, filename, str(data)[:25],
                 exc_info=True
             )

@@ -175,8 +175,6 @@ class GoBaseClass:
         """
         assert isinstance(json_dct, dict), \
             f"arg 'json_dct': type 'dict' expected, but '{type(json_dct).__name__}' received"
-        assert (dbRef is None) or isinstance(dbRef, GxDatabase), \
-            f"arg 'dbRef': type 'GxDatabase' expected, but '{type(dbRef).__name__}' received"
         # Objekt erstellen
         obj = cls(dbRef, json_dct['PrjID'], json_dct['Name'])
         obj._InsUser = json_dct.get('InsUser', obj._InsUser)
@@ -239,10 +237,10 @@ class GoBaseClass:
         yield from {
             'PrjID': self._PrjID,
             'Name': self._Name,
-            'InsUser': obj._InsUser,
-            'InsDate': obj._InsDate,
-            'UpdUser': obj._UpdUser,
-            'UpdDate': obj._UpdDate
+            'InsUser': self._InsUser,
+            'InsDate': self._InsDate,
+            'UpdUser': self._UpdUser,
+            'UpdDate': self._UpdDate
         }.items()
 
     def __str__(self):

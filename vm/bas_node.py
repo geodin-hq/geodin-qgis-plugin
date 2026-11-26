@@ -74,7 +74,7 @@ class GoNode(QtWidgets.QTreeWidgetItem):
         # QTreeWidgetItem initialisieren...
         self.setIcon(0, GoNode.QIcon(self.iconAlias()))
 ##        self.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.ShowIndicator)
-        self.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.DontShowIndicatorWhenChildless)
+        self.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.ChildIndicatorPolicy.DontShowIndicatorWhenChildless)
         name = self.__class__.__name__
         if hasattr(self._tag, 'goDict'):
             name = self._tag.goDict(name)
@@ -150,7 +150,7 @@ class GoNode(QtWidgets.QTreeWidgetItem):
         """
         icon = QtGui.QIcon(f":/plugins/GeODinQGIS/{alias}")
         if disabled:
-            icon = QtGui.QIcon(icon.pixmap(QtCore.QSize(32, 32), QtGui.QIcon.Disabled))
+            icon = QtGui.QIcon(icon.pixmap(QtCore.QSize(32, 32), QtGui.QIcon.Mode.Disabled))
         return icon
 
     @property
@@ -288,7 +288,13 @@ class GoNode(QtWidgets.QTreeWidgetItem):
         14.06.2023 j.ebert
         """
         self.log.log(gqc._LOG_TRACE, "Not overloaded in class %s", self.__class__.__name__)
-        self.setSelected(True)
+        # 10/2026: make the expanded node the current (and only) selected item;
+        #   setSelected(True) added it to the selection, so several nodes were
+        #   selected at the same time and the context menu did not open any more
+        if self.treeWidget() is not None:
+            self.treeWidget().setCurrentItem(self)
+        else:
+            self.setSelected(True)
         if (self.isExpanded() and self.hasDummyChild()):
             # Wenn der Knoten aufgeklappt ist und
             # wenn der Knoten NUR GENAU ein DummyChild hat,
@@ -308,11 +314,11 @@ class GoNode(QtWidgets.QTreeWidgetItem):
             try:
                 gx.gApp.selectObject(self._tag)
             except gqb.GxException as exc:
-                MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+                MsgBox.error(plugin().parent(), 'GeoDin', exc.msg())
             except Exception:
                 MsgBox.error(
                     plugin().parent(),
-                    'GeODin',
+                    'GeoDin',
                     self.translate("Unknown error on select object")
                 )
         return
@@ -370,7 +376,7 @@ class GoNode(QtWidgets.QTreeWidgetItem):
             disabled = self._tag.isDisabled()
             self.setForeground(
                 self.textColumn(),
-                self.palette().brush(QtGui.QPalette.Disabled, QtGui.QPalette.Text)
+                self.palette().brush(QtGui.QPalette.ColorGroup.Disabled, QtGui.QPalette.ColorRole.Text)
             )
             # 06/2023 j.ebert Anmerkung
             #   Wenn QTreeWidgetItem disabled ist/dragestellt wird,
@@ -379,7 +385,7 @@ class GoNode(QtWidgets.QTreeWidgetItem):
         else:
             self.setForeground(
                 self.textColumn(),
-                self.palette().brush(QtGui.QPalette.Normal, QtGui.QPalette.Text)
+                self.palette().brush(QtGui.QPalette.ColorGroup.Normal, QtGui.QPalette.ColorRole.Text)
             )
         self.setIcon(0, GoNode.QIcon(self.iconAlias(mode), disabled))
         return

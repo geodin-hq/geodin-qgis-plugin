@@ -13,9 +13,9 @@
         "key": "val"
     },
     "GQgis_Act": {
-        "Close GeODin": "Disconnect GeODin",
-        "Open GeODin": "Connect GeODin",
-        "Update layer selection for GeODin plugin tools": "Update layer selection for GeODinQGIS tools",
+        "Close GeoDin": "Disconnect GeoDin",
+        "Open GeoDin": "Connect GeoDin",
+        "Update layer selection for GeoDin plugin tools": "Update layer selection for GeoDinQGIS tools",
         "key": "val"
     }
 }

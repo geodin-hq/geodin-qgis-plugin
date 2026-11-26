@@ -10,7 +10,6 @@ import datetime
 import json
 import logging
 import os
-import random
 import re
 import struct
 import sys
@@ -34,8 +33,103 @@ from .system import (
     GxSys
 )
 
-_log_password = "".ljust(random.randint(8,17), '*')
-"""general password for logging"""
+
+def _sleep(seconds):
+    """waits 'seconds'; keeps the QGIS user interface (status dialog) responsive if possible
+
+    10/2026
+    """
+    try:
+        from GeODinQGIS.ui.gqgis_bas import qsleep
+        qsleep(seconds)
+    except Exception:
+        time.sleep(seconds)
+
+
+
+# 10/2026: GeoDin busy check ------------------------------------------------------------
+#   While a modal GeoDin dialog is open (e.g. 'Neues Objekt'), GeoDin does not answer COM
+#   calls - QGIS would wait (or Windows shows 'Server busy'). Before each interactive COM
+#   call the plugin checks the windows of geodin.exe: a visible but disabled top-level
+#   window means that a modal dialog is open.
+
+def _geodinWindows():
+    """visible top-level windows of geodin.exe: list((hwnd, title, enabled))"""
+    try:
+        import win32api
+        import win32gui
+        import win32process
+    except Exception:
+        return []
+    found = []
+    exes = {}
+
+    def _enum(hwnd, _):
+        try:
+            if not win32gui.IsWindowVisible(hwnd):
+                return True
+            _tid, pid = win32process.GetWindowThreadProcessId(hwnd)
+            if pid not in exes:
+                hProc = win32api.OpenProcess(0x1000 | 0x0010, False, pid)
+                try:
+                    exes[pid] = os.path.basename(win32process.GetModuleFileNameEx(hProc, 0)).lower()
+                finally:
+                    win32api.CloseHandle(hProc)
+            if exes[pid] == "geodin.exe":
+                found.append((hwnd, win32gui.GetWindowText(hwnd), bool(win32gui.IsWindowEnabled(hwnd))))
+        except Exception:
+            pass
+        return True
+
+    try:
+        win32gui.EnumWindows(_enum, None)
+    except Exception:
+        return []
+    return found
+
+
+def geodinBusyDialog():
+    """title of the open modal GeoDin dialog, '' if GeoDin is not busy (10/2026)"""
+    wins = _geodinWindows()
+    if not any((not enabled) and title for _hwnd, title, enabled in wins):
+        return ""
+    dialogs = [title for _hwnd, title, enabled in wins if enabled and title]
+    return dialogs[0] if dialogs else "GeoDin"
+
+
+def bringGeoDinDialogToFront():
+    """brings the enabled (dialog) windows of geodin.exe to the front (10/2026)"""
+    try:
+        import win32con
+        import win32gui
+    except Exception:
+        return False
+    wins = [hwnd for hwnd, title, enabled in _geodinWindows() if enabled]
+    for hwnd in wins:
+        try:
+            if win32gui.IsIconic(hwnd):
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(hwnd)
+        except Exception:
+            try:
+                win32gui.FlashWindow(hwnd, True)
+            except Exception:
+                pass
+    return bool(wins)
+
+
+def _busyText(dialog):
+    return gqb.res.translate(
+        "gx",
+        "GeoDin is busy (dialog '%s' is open).\nPlease complete or cancel the dialog in GeoDin first and then try again."
+    ) % dialog
+
+
+def _leaveNodeText():
+    return gqb.res.translate(
+        "gx",
+        "A GeoDin method is still active (e.g. object data with unsaved changes).\nPlease save or close it in GeoDin first and then try again."
+    )
 
 class GxCOM:
     """GeODin COM interface (Singleton!)
@@ -87,15 +181,15 @@ class GxCOM:
         """
         cls.log.log(gqc._LOG_TRACE,"")
         if not GxReg.prog_path():
-            raise gqb.GxGAppError('GeODin is not installed/registered')
+            raise gqb.GxGAppError('GeoDin is not installed/registered')
         progPath = Path(GxReg.prog_path())
         if not progPath.exists():
-            raise gqb.GxGAppError('GeODin not found\n%s', str(progPath))
+            raise gqb.GxGAppError('GeoDin not found\n%s', str(progPath))
         curVersion = GxReg.get_FileVersion(str(progPath))
         minVersion = (9,)
         if curVersion < minVersion:
             raise gqb.GxGAppError(
-                'GeODin version %s not supported (version %s required)',
+                'GeoDin version %s not supported (version %s required)',
                 '.'.join([str(val) for val in curVersion]),
                 '.'.join([str(val) for val in minVersion])
             )
@@ -111,13 +205,13 @@ class GxCOM:
         self.log.log(gqc._LOG_TRACE, "")
         # Existiert bereits eine COM Connection/ist das Attr. _gCOM gesetzt?
         if not self._gCOM:
-            raise gqb.GxGComCnnError("GeODin connection not yet open")
+            raise gqb.GxGComCnnError("GeoDin connection not yet open")
         # GeODin RegSZ 'System\Handle' ermitteln...
         curRegHandle = GxReg.query_Handle()
         self.log.debug(
             "%n%tCnnHdl - %-25s %6d%n%tAppHdl - %-25s %6d",
             "GxCOM._gCOM_RegHandle", self._gCOM_RegHandle,
-            "RegSZ 'System\Handle'", curRegHandle
+            "RegSZ 'System\\Handle'", curRegHandle
         )
         # GeODinCOM Connection prüfen...
         if (
@@ -136,14 +230,14 @@ class GxCOM:
             # wenn _gCOM_RegHandle ungleich dem GeODin RegSZ 'System\Handle' ist,
             # dann ist die GeODin COM Connection NICHT aktuell
             raise gqb.GxGComCnnError(
-                "GeODin connection interrupted\nPlease open the GeODin connection again"
+                "GeoDin connection interrupted\nPlease open the GeoDin connection again"
             )
         else:
             # Wenn _gCOM_RegHandle ungleich dem GeODin RegSZ 'System\Handle' ist oder
             # wenn _gCOM_RegHandle NICHT gesetzt,
             # dann ist die GeODin COM Connection NICHT aktuell oder nicht gesetzt
             raise gqb.GxGComCnnError(
-                "GeODin connection undefined (CnnHdl: %d, AppHdl: %d)",
+                "GeoDin connection undefined (CnnHdl: %d, AppHdl: %d)",
                 self._gCOM_RegHandle,
                 curRegHandle
             )
@@ -227,11 +321,31 @@ class GxCOM:
         self.renew()
         return self._gCOM_RegHandle
 
+    def assertNotBusy(self):
+        """raises GxGAppBusyError if a modal GeoDin dialog is open (10/2026)"""
+        dialog = geodinBusyDialog()
+        if dialog:
+            self.log.warning("GeoDin is busy, modal dialog '%s' is open - COM call not executed", dialog)
+            bringGeoDinDialogToFront()
+            raise gqb.GxGAppBusyError("%s", _busyText(dialog))
+        return
+
+    def _raiseComException(self):
+        """raises the exception of the last COM call (friendly text for known GeoDin messages)"""
+        msg = self._gCOM_ExcetpionMsg or ""
+        # GeoDin message G0452 (method active, the selected GOM node cannot be left)
+        if ("nicht verlassen werden" in msg) or ("cannot be left" in msg.lower()):
+            bringGeoDinDialogToFront()
+            raise gqb.GxGAppBusyError("%s\n\n(GeoDin: %s)", _leaveNodeText(), msg.strip())
+        raise gqb.GxGComException(
+            "COM Exception %02d (%s)", self._gCOM_ExcetpionVal,  self._gCOM_ExcetpionMsg
+        )
+
     def ping(self):
         """tests GeODin COM Connection
 
         returns:
-            hdl (int)           GeODin RegSZ 'System\Handle'
+            hdl (int)           GeODin RegSZ 'System\\Handle'
 
         exceptions:
             AssertionError      if the GeODin COM connection is not yet open/instantiated
@@ -252,7 +366,7 @@ class GxCOM:
         # wenn _gCOM nicht gesetzt ist,
         # dann Abbruch der Methode mit AssertionError
         assert self._gCOM, \
-            "GeODin COM connection is not opened/initialised"
+            "GeoDin COM connection is not opened/initialised"
         # GeODin COM Connection prüfen
         if (
             (self._gCOM_RegHandle != self.__REGHANDLE_CLOSED) and
@@ -298,7 +412,7 @@ class GxCOM:
             hdl = GxReg.query_Handle()
             print(hdl, res)
             if not hdl:
-                time.sleep(sleepTime)
+                _sleep(sleepTime)
         return hdl, res
 
     def renew(self):
@@ -325,7 +439,7 @@ class GxCOM:
                 # Wenn GeODin Apllication/COM Server bereits ausgeführt wird,
                 # dann eine Warnung loggen, weil
                 # dann die Voreinstellung von AppFolder wirkungslos ist
-                self.log.warning("A GeODin application (geodin.exe) is already running")
+                self.log.warning("A GeoDin application (geodin.exe) is already running")
             # - AppFolder prüfen und RegSZ zum Starten vom GeODin COM Server setzen
             #       AssertionError      if argument 'appFolder' is not of type string or is empty
             #       GxAppFolderError    if Applictionfolder itself or file geodin.ini not found
@@ -354,11 +468,11 @@ class GxCOM:
                     "%s.StartupDelayTime: %d seconds",
                     self.__class__.__name__, self.StartupDelayTime
                 )
-                time.sleep(self.StartupDelayTime)
+                _sleep(self.StartupDelayTime)
             appFolder = self._gCOM_AppFolder()[1]
         finally:
             # GeODin COM Connection prüfen (immer!!!)...
-            self.log.debug("GAppFolder %s\ngCOMFolder ", self._AppFolder, appFolder)
+            self.log.debug("GAppFolder %s\ngCOMFolder %s", self._AppFolder, appFolder)
             if (
                 bool(appFolder) and
                 Path(appFolder).samefile(self._AppFolder)
@@ -375,7 +489,7 @@ class GxCOM:
                 # dann muss GeODin neu gestartet werden (mit entsprechender Applicatonfolder)
                 self.reset()
                 raise gqb.GxGAppRestartRequiredError(
-                    "GeODin application has to be restarted\nGeODin App\t%s\nGeODin QGIS\t%s",
+                    "GeoDin application has to be restarted\nGeoDin App\t%s\nGeoDin QGIS\t%s",
                     appFolder,
                     self._AppFolder
                 )
@@ -427,7 +541,7 @@ class GxCOM:
         Achtung, die Bedeutung von 'Applicationfolder' ist vom Context abhängig
             - Anwendungsverzeichnis von GeODin/Verzeichnis aus dem die geodin.ini gelesen wird
                 - GeODin aufrufen mit Parameter -af
-                - GeODin als COM-Server instanzieren RegSZ GeODin-System\ComServer\ApplicationFolder
+                - GeODin als COM-Server instanzieren RegSZ GeODin-System\\ComServer\\ApplicationFolder
                 - im Context einer GeODin Extension
             - Pfad der Programmdatei (!!!)
                 - GeODin COM Funktion SysInfo('ApplicationFolder')
@@ -458,18 +572,14 @@ class GxCOM:
 
         30.05.2023 j.ebert
         """
+        # 10/2026: no COM call while a modal GeoDin dialog is open
+        self.assertNotBusy()
         self.ping()
         if self.log.level <= gqc._LOG_GxCOM:
             self.log.log(
                 gqc._LOG_GxCOM,
                 "CreateObjectSelection: \n\t%s",
-##                json.dumps(prms, indent=4).replace("\n", "\n\t")
-                re.sub(
-                    "\"Password\": \"\S+\"",
-                    "\"Password\": \"%s\"" % _log_password,
-                    json.dumps(prms, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                )
+                json.dumps(prms, indent=4).replace("\n", "\n\t")
             )
         self._gCOM_ExcetpionVal = self._gCOM.CreateObjectSelection(
             prms['Database'],
@@ -487,9 +597,45 @@ class GxCOM:
             "CreateObjectSelection:%4d (%s)", self._gCOM_ExcetpionVal, self._gCOM_ExcetpionMsg
         )
         if self._gCOM_ExcetpionVal:
-            raise gqb.GxGComException(
-                "COM Exception %02d (%s)", self._gCOM_ExcetpionVal,  self._gCOM_ExcetpionMsg
-            )
+            # raise gqb.GxGComException(
+            #     "COM Exception %02d (%s)", self._gCOM_ExcetpionVal,  self._gCOM_ExcetpionMsg
+            # )
+            self._raiseComException()      # 10/2026: friendly text for known GeoDin messages
+        return
+
+    def _gCOM_ExecuteMethodParams(
+        self,
+        methodID,
+        prms=""
+        ):
+        """executes a GeoDin method at the selected GOM node (COM ExecuteMethodParams)
+
+        Method IDs (GeoDin source Interface_InteractiveClient.pas, tested 10/2026):
+            1   edit object data (base editor), MethodParams 'EditType=1' object data,
+                'EditType=2' layer data
+            2   graphic window (print and edit graphics)
+            60  publish/export (MethodParams 'Method=FeatureCollection...')
+
+        10/2026
+        """
+        # 10/2026: no COM call while a modal GeoDin dialog is open
+        self.assertNotBusy()
+        assert self._gCOM, f"{self.__gCOM_Alias} not activated"
+        self.log.log(
+            gqc._LOG_GxCOM,
+            "ExecuteMethodParams (%d): \n\t%s", methodID, str(prms).replace("\n", "\n\t")
+        )
+        self._gCOM_ExcetpionVal = self._gCOM.ExecuteMethodParams(methodID, prms)
+        self._gCOM_ExcetpionMsg = self._gCOM.ExceptionMsg
+        self.log.log(
+            gqc._LOG_GxCOM,
+            "ExecuteMethodParams:%4d (%s)", self._gCOM_ExcetpionVal, self._gCOM_ExcetpionMsg
+        )
+        if self._gCOM_ExcetpionVal:
+            # raise gqb.GxGComException(
+            #     "COM Exception %02d (%s)", self._gCOM_ExcetpionVal,  self._gCOM_ExcetpionMsg
+            # )
+            self._raiseComException()      # 10/2026: friendly text for known GeoDin messages
         return
 
     def _gCOM_exportFeatureCollection(
@@ -505,7 +651,9 @@ class GxCOM:
 
         25.04.2024 j.ebert
         """
-        assert self._gCOM, f"{__gCOM_Alias} not activated"
+        # 10/2026: no COM call while a modal GeoDin dialog is open
+        self.assertNotBusy()
+        assert self._gCOM, f"{self.__gCOM_Alias} not activated"
         assert isinstance(filename, str) and bool(filename), \
             "Argument 'filename' not set"
         prms = f"""
@@ -526,9 +674,10 @@ Filename={filename}
             "ExecuteMethodParams:%4d (%s)", self._gCOM_ExcetpionVal, self._gCOM_ExcetpionMsg
         )
         if self._gCOM_ExcetpionVal:
-            raise gqb.GxGComException(
-                "COM Exception %02d (%s)", self._gCOM_ExcetpionVal,  self._gCOM_ExcetpionMsg
-            )
+            # raise gqb.GxGComException(
+            #     "COM Exception %02d (%s)", self._gCOM_ExcetpionVal,  self._gCOM_ExcetpionMsg
+            # )
+            self._raiseComException()      # 10/2026: friendly text for known GeoDin messages
         elif not os.path.exists(filename):
             # 04/2024 j.ebert, GeODin 10.0.267.0 (05.01.2024)
             #   - GeoDin-COM-Funktion zum Exportieren einer FeatureCollection wird aufgerufen
@@ -553,7 +702,7 @@ Filename={filename}
 
         10.03.2023 j.ebert
         """
-        assert self._gCOM, f"{__gCOM_Alias} not activated"
+        assert self._gCOM, f"{self.__gCOM_Alias} not activated"
         res = self._gCOM.SysInfo('ApplicationFolder')
         self._gCOM_ExcetpionVal = self._gCOM.ExceptionValue
         self._gCOM_ExcetpionMsg = self._gCOM.ExceptionMsg
@@ -566,7 +715,7 @@ Filename={filename}
         return self._gCOM_ExcetpionVal, res
 
     def _gCOM_LicenceInfo(self):
-        assert self._gCOM, f"{__gCOM_Alias} not activated"
+        assert self._gCOM, f"{self.__gCOM_Alias} not activated"
         res = self._gCOM.LicenceInfo
         self._gCOM_ExcetpionVal = self._gCOM.ExceptionValue
         self._gCOM_ExcetpionMsg = self._gCOM.ExceptionMsg
@@ -581,7 +730,7 @@ Filename={filename}
 
         10.03.2023 j.ebert
         """
-        assert self._gCOM, f"{__gCOM_Alias} not activated"
+        assert self._gCOM, f"{self.__gCOM_Alias} not activated"
         res = self._gCOM.SysInfo('ProgramDataFolder')
         self._gCOM_ExcetpionVal = self._gCOM.ExceptionValue
         self._gCOM_ExcetpionMsg = self._gCOM.ExceptionMsg
@@ -629,18 +778,13 @@ Filename={filename}
 
         30.05.2023 j.ebert
         """
+        # 10/2026: no COM call while a modal GeoDin dialog is open
+        self.assertNotBusy()
         self.ping()
         self.log.log(
             gqc._LOG_GxCOM,
             "SelectObject: \n\t%s",
-##            prms.replace("\n","\n\t")
-            re.sub(
-                "Password=\S+",
-                "Password=%s" % _log_password,
-                prms.replace("\n","\n\t"),
-                re.IGNORECASE
-            ),
-
+            prms.replace("\n","\n\t")
         )
         self._gCOM_ExcetpionVal = self._gCOM.SelectObject(prms)
         self._gCOM_ExcetpionMsg = self._gCOM.ExceptionMsg
@@ -649,9 +793,10 @@ Filename={filename}
             "SelectObject:%4d (%s)", self._gCOM_ExcetpionVal, self._gCOM_ExcetpionMsg
         )
         if self._gCOM_ExcetpionVal:
-            raise gqb.GxGComException(
-                "COM Exception %02d (%s)", self._gCOM_ExcetpionVal,  self._gCOM_ExcetpionMsg
-            )
+            # raise gqb.GxGComException(
+            #     "COM Exception %02d (%s)", self._gCOM_ExcetpionVal,  self._gCOM_ExcetpionMsg
+            # )
+            self._raiseComException()      # 10/2026: friendly text for known GeoDin messages
         return
 
 
@@ -665,7 +810,7 @@ class GxSQL:
     _context = 'GxSQL'
     def __new__(cls):
         if not hasattr(cls, 'instance'):
-            cls.instance = super(GxGeODinCOM, cls).__new__(cls)
+            cls.instance = super(GxSQL, cls).__new__(cls)
         return cls.instance
 
     def __init__(self):
@@ -748,27 +893,11 @@ class GxSQL:
                 cnnPrms += [
                 ]
             cnnStr = ";".join(cnnPrms + [""])
-            # Connection-Prps/Prms/Str loggen, aber mit "maskierten" Passwort(!!!)
             cls.log.debug(
                 "cnnPrps = %s\n\tcnnPrms = %s\n\tcnnStr = \"%s\"",
-                re.sub(
-                    "\"password\": \"\S+\"",
-                    "\"password\": \"%s\"" % _log_password,
-                    json.dumps(gDB._CnnPrps, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                ),
-                re.sub(
-                    "\"PWD=\S+\"",
-                    "\"PWD=%s\";" % _log_password,
-                    json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                ),
-                re.sub(
-                    "PWD=\S+;",
-                    "PWD=%s;" % _log_password,
-                    cnnStr,
-                    re.IGNORECASE
-                )
+                json.dumps(gDB._CnnPrps, indent=4).replace("\n", "\n\t"),
+                json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
+                cnnStr
             )
             # pyodbc-Connection testen
             cnn = pyodbc.connect(cnnStr)
@@ -865,27 +994,11 @@ class GxSQL:
                         "Failed to connect %s database '%s'", gDB.DriverID, gDB.Name
                     )
             cnnStr = ";".join(cnnPrms + [""])
-            # Connection-Prps/Prms/Str loggen, aber mit "maskierten" Passwort(!!!)
             cls.log.debug(
                 "cnnPrps = %s\n\tcnnPrms = %s\n\tcnnStr = \"%s\"",
-                re.sub(
-                    "\"password\": \"\S+\"",
-                    "\"password\": \"%s\"" % _log_password,
-                    json.dumps(gDB._CnnPrps, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                ),
-                re.sub(
-                    "\"PWD=\S+\"",
-                    "\"PWD=%s\";" % _log_password,
-                    json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                ),
-                re.sub(
-                    "PWD=\S+;",
-                    "PWD=%s;" % _log_password,
-                    cnnStr,
-                    re.IGNORECASE
-                )
+                json.dumps(gDB._CnnPrps, indent=4).replace("\n", "\n\t"),
+                json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
+                cnnStr
             )
             # pyodbc-Connection testen
             cnn = pyodbc.connect(cnnStr)
@@ -940,27 +1053,11 @@ class GxSQL:
                     "password=%s" % gDB._CnnPrps['password']
                 ]
             cnnStr = " ".join(cnnPrms)
-            # Connection-Prps/Prms/Str loggen, aber mit "maskierten" Passwort(!!!)
             cls.log.debug(
                 "cnnPrps = %s\n\tcnnPrms = %s\n\tcnnStr = \"%s\"",
-                re.sub(
-                    "\"password\": \"\S+\"",
-                    "\"password\": \"%s\"" % _log_password,
-                    json.dumps(gDB._CnnPrps, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                ),
-                re.sub(
-                    "\"password=\S+\"",
-                    "\"password=%s\"" % _log_password,
-                    json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                ),
-                re.sub(
-                    "password=\S+",
-                    "password=%s" % _log_password,
-                    cnnStr,
-                    re.IGNORECASE
-                )
+                json.dumps(gDB._CnnPrps, indent=4).replace("\n", "\n\t"),
+                json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
+                cnnStr
             )
             # psycopg2-Connection testen
             cnn = psycopg2.connect(cnnStr)

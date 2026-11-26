@@ -25,6 +25,102 @@ import GeODinQGIS.gx as gx
 import qgis.gui
 
 
+def _goLyrExcText(cbo):
+    """reason why there is no valid GeoDin layer in the combo box (10/2026)"""
+    exc = cbo.GoLyrExc
+    if exc:
+        return exc.msg()
+    return res.translate(CONTEXT_RES, "No GeoDin layer selected")
+
+
+def _modeText(mode):
+    from GeODinQGIS.ui.gqgis_options import MODE_TEXT
+    return MODE_TEXT.get(mode, mode)
+
+
+def updateGoLayerData(qry, lyr, log, parent=None, title="GeoDinQGIS"):
+    """exports the query again from GeoDin and reloads the layer (10/2026)
+
+    as 'Update layer(s)' in the Explorer (vm/query_node.py onLayerUpdate)
+    """
+    import tempfile
+    from pathlib import Path as _Path
+    QtWidgets.QApplication.setOverrideCursor(QtGui.QCursor(QtCore.Qt.CursorShape.WaitCursor))
+    try:
+        dataPath = _Path(lyr.source().split("|")[0])
+        gx.gApp.selectObject(qry)
+        with tempfile.TemporaryFile(
+            prefix=(dataPath.stem + '_'), suffix=dataPath.suffix, dir=dataPath.parent
+        ) as tempFile:
+            tempPath = _Path(tempFile.name)
+        gx.gApp.exportFeatureCollection(str(tempPath))
+        dataPath.write_text(tempPath.read_text())
+        tempPath.unlink()
+        lyr.reload()
+        lyr.triggerRepaint()
+        log.info("Layer data updated: %s (%d features)", lyr.name(), lyr.featureCount())
+        return True
+    except gqb.GQgisException as exc:
+        log.error(exc.msg(), exc_info=True)
+        QtWidgets.QApplication.restoreOverrideCursor()
+        GQgis_MsgBox.error(parent, title, exc.msg())
+    except Exception:
+        log.critical("Unknown error on 'Update layer'", exc_info=True)
+        QtWidgets.QApplication.restoreOverrideCursor()
+        GQgis_MsgBox.critical(parent, title, "Unknown error on 'Update layer'")
+    finally:
+        if QtWidgets.QApplication.overrideCursor() is not None:
+            QtWidgets.QApplication.restoreOverrideCursor()
+    return False
+
+
+class _GQgis_ModeMenu:
+    """menu (arrow at the toolbar button) with the GeoDin method after the tool (10/2026)
+
+    The class using it sets self._modeTool (TOOL_SELECTION/TOOL_HOTLINK) and
+    self._modeTitle (translation key of the tooltip) and implements executeMode(mode).
+    """
+
+    def _initModeMenu(self):
+        from GeODinQGIS.ui.gqgis_options import TOOL_MODES
+        self._modeActions = {}
+        menu = QtWidgets.QMenu(self._parent)
+        for mode in TOOL_MODES[self._modeTool]:
+            action = QtWidgets.QAction(mode, menu)
+            action.setCheckable(True)
+            action.triggered.connect(lambda checked=False, m=mode: self.executeMode(m))
+            menu.addAction(action)
+            self._modeActions[mode] = action
+        menu.aboutToShow.connect(self._updateModeMenu)
+        self._modeMenu = menu
+        self.setMenu(menu)
+        return
+
+    def _updateModeMenu(self):
+        """texts and check marks of the menu, tooltip with the current mode"""
+        if not getattr(self, '_modeActions', None):
+            return
+        from GeODinQGIS.ui.gqgis_options import afterSelectionMode
+        current = afterSelectionMode(self._modeTool)
+        for mode, action in self._modeActions.items():
+            action.setText(self.trans(_modeText(mode)))
+            action.setChecked(mode == current)
+        tip = "%s: %s" % (self.trans(self._modeTitle), self.trans(_modeText(current)))
+        lyrTip = getattr(self, '_lyrToolTip', "")
+        self.setToolTip(f"{tip}\n{lyrTip}" if lyrTip else tip)
+        return
+
+    def setLyrToolTip(self, text):
+        """tooltip of the GeoDin layer (below the mode)"""
+        self._lyrToolTip = text
+        self._updateModeMenu()
+
+    def _saveMode(self, mode):
+        from GeODinQGIS.ui.gqgis_options import setAfterSelectionMode
+        setAfterSelectionMode(self._modeTool, mode)
+        self._updateModeMenu()
+
+
 class GQgis_Act_LayersReload(QtWidgets.QAction, GQgis_Bas_Widget):
     """ QAction to testing
 
@@ -55,7 +151,9 @@ class GQgis_Act_LayersReload(QtWidgets.QAction, GQgis_Bas_Widget):
     def translateUi(self):
         self.log.debug("translate in context '%s'", self._context)
         self.setText(self.trans("Update layer selection"))
-        self.setToolTip(self.trans("Update layer selection for GeODin plugin tools"))
+        # self.setToolTip(self.trans("Update layer selection for GeoDin plugin tools"))
+        # 10/2026: also updates the data of the selected layer (export from GeoDin)
+        self.setToolTip(self.trans("Update layer selection and the data of the selected GeoDin layer"))
 
     def updateUi(
         self,
@@ -78,10 +176,20 @@ class GQgis_Act_LayersReload(QtWidgets.QAction, GQgis_Bas_Widget):
         return
 
     def execute(self):
-        GQgis_Cbo_Layers.instance().reloadGoLayers()
+        # GQgis_Cbo_Layers.instance().reloadGoLayers()
+        # 10/2026: reload the layer selection, keep the selected layer and update its data
+        cbo = GQgis_Cbo_Layers.instance()
+        lyrId = cbo.currentData()
+        cbo.reloadGoLayers()
+        idx = cbo.findData(lyrId) if lyrId else -1
+        if idx >= 0 and idx != cbo.currentIndex():
+            cbo.setCurrentIndex(idx)
+        if cbo.GoLyr is None or cbo.GoLyrQry is None:
+            return
+        updateGoLayerData(cbo.GoLyrQry, cbo.GoLyr, self.log, self._parent, self.text())
 
 
-class GQgis_Act_ToolHotlink(QtWidgets.QAction, GQgis_Bas_Widget):
+class GQgis_Act_ToolHotlink(QtWidgets.QAction, GQgis_Bas_Widget, _GQgis_ModeMenu):
     """ QAction GeODin plugin tool 'Hotlink'
 
     07.08.2023 j.ebert
@@ -105,6 +213,12 @@ class GQgis_Act_ToolHotlink(QtWidgets.QAction, GQgis_Bas_Widget):
         self.canvas = qgis.utils.iface.mapCanvas()
         self.mapTool = GQgis_MapToolHotlink(self.canvas)
         self.mapTool.setAction(self)
+        # 10/2026: menu (arrow) - GeoDin method after the click (select only / object data /
+        #   print and edit graphics), the chosen entry is remembered
+        from GeODinQGIS.ui.gqgis_options import TOOL_HOTLINK
+        self._modeTool = TOOL_HOTLINK
+        self._modeTitle = "Select object"
+        self._initModeMenu()
         # translate QAction
         self.translateUi()
         # register QAction for translation
@@ -113,7 +227,16 @@ class GQgis_Act_ToolHotlink(QtWidgets.QAction, GQgis_Bas_Widget):
     def translateUi(self):
         self.log.debug("translate in context '%s'", self._context)
         self.setText(self.trans("Select object"))
-        self.setToolTip(self.trans("Select object"))
+        # self.setToolTip(self.trans("Select object"))    # 10/2026 see _updateModeMenu()
+        self._updateModeMenu()
+
+    def executeMode(self, mode):
+        """remembers the GeoDin method and activates the Hotlink tool (10/2026)"""
+        self._saveMode(mode)
+        if self.isEnabled():
+            self.setChecked(True)
+            self.execute()
+        return
 
     def updateUi(
         self,
@@ -141,7 +264,7 @@ class GQgis_Act_ToolHotlink(QtWidgets.QAction, GQgis_Bas_Widget):
         self.canvas.setMapTool(self.mapTool)
 
 
-class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget):
+class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget, _GQgis_ModeMenu):
     """ QAction to testing
 
     09.08.2023 j.ebert
@@ -158,10 +281,27 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget):
         # set up QAction
         self.setObjectName(self.__class__.__name__)
         self.setIcon(self.QIcon("gToolSelection"))
+        # if slot:
+        #     self.triggered.connect(slot)
+        # else:
+        #     self.triggered.connect(self.execute)
+        # 10/2026: map tool - select the objects in the map (rectangle or click), afterwards
+        #   the object selection is created in GeoDin and the function of the menu is executed
+        self.setCheckable(True)
         if slot:
             self.triggered.connect(slot)
         else:
-            self.triggered.connect(self.execute)
+            self.triggered.connect(self.activateTool)
+        self.canvas = qgis.utils.iface.mapCanvas()
+        self.mapTool = GQgis_MapToolSelection(self.canvas, self.onFeaturesSelected)
+        self.mapTool.setAction(self)
+        # 10/2026: menu (arrow at the toolbar button) - GeoDin method after the selection
+        #   (select only / open object data / print and edit graphics); the chosen entry is
+        #   executed and remembered for the next click on the button
+        from GeODinQGIS.ui.gqgis_options import TOOL_SELECTION
+        self._modeTool = TOOL_SELECTION
+        self._modeTitle = "Create object group"
+        self._initModeMenu()
         # translate QAction
         self.translateUi()
         # register QAction for translation
@@ -177,7 +317,83 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget):
     def translateUi(self):
         self.log.debug("translate in context '%s'", self._context)
         self.setText(self.trans("Create object group"))
-        self.setToolTip(self.trans("Create object group"))
+        # self.setToolTip(self.trans("Create object group"))    # 10/2026 see _updateModeMenu()
+        self._updateModeMenu()
+
+    def activateTool(self):
+        """activates the map tool to select objects in the GeoDin layer (10/2026)"""
+        self.updateGoLyr()
+        if self.GoLyr is None:
+            self.setChecked(False)
+            GQgis_MsgBox.error(self._parent, self.text(), _goLyrExcText(self.cboLayers()))
+            return
+        self.mapTool.setLayer(self.GoLyr)
+        self.setChecked(True)
+        self.canvas.setMapTool(self.mapTool)
+        try:
+            # qgis.utils.iface.messageBar().pushInfo(
+            #     "GeoDinQGIS",
+            #     self.trans("Select objects in layer '%s' (rectangle or click, Shift adds): %s")
+            #     % (self.GoLyrText, self.trans(_modeText(self._currentMode())))
+            # )
+            # 10/2026: short text with word wrap (was cut off in a small QGIS window)
+            from GeODinQGIS.ui.gqgis_options import pushMessage
+            pushMessage(
+                self.trans("Select objects (rectangle or click, Shift adds): %s")
+                % self.trans(_modeText(self._currentMode())),
+                tooltip=self.GoLyrText
+            )
+        except Exception:
+            pass
+        return
+
+    def _currentMode(self):
+        from GeODinQGIS.ui.gqgis_options import afterSelectionMode
+        return afterSelectionMode(self._modeTool)
+
+    def onFeaturesSelected(self, count):
+        """called by the map tool after a selection in the map (10/2026)"""
+        if count > 0:
+            self.execute()
+        else:
+            # 11/2026: no feature of the GeoDin layer hit (e.g. click beside the symbol or on
+            #   a feature of another layer) - before nothing happened without a notice
+            try:
+                from GeODinQGIS.ui.gqgis_options import pushMessage
+                pushMessage(
+                    self.trans("No object of the GeoDin layer '%s' found at this place.")
+                    % self.GoLyrText,
+                    level="warning"
+                )
+            except Exception:
+                pass
+        return
+
+    def executeMode(self, mode):
+        """remembers the GeoDin method and activates the map tool (10/2026)"""
+        self._saveMode(mode)
+        if self.isEnabled():
+            self.activateTool()
+        return
+
+    def executeMode_v01(self, mode):
+        """remembers the GeoDin method after the selection and creates the selection (10/2026)"""
+        self._saveMode(mode)
+        # execute only if features are selected in the GeoDin layer, else only remember
+        self.updateGoLyr()
+        self._switchToSelectedGoLayer()
+        if self.isEnabled() and self.GoLyr is not None and self.GoLyr.selectedFeatureCount() > 0:
+            self.execute()
+        else:
+            try:
+                from GeODinQGIS.ui.gqgis_options import pushMessage
+                pushMessage(
+                    self.trans("%s - select features in the GeoDin layer and click the button.")
+                    % self.trans(_modeText(mode))
+                )
+            except Exception:
+                pass
+        return
 
     def updateUi(
         self,
@@ -196,6 +412,8 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget):
             isinstance(widget, QtWidgets.QWidget) and
             (widget.isEnabled() != enabled)
         ):
+            if (not enabled) and self.mapTool.isActive():
+                self.canvas.unsetMapTool(self.mapTool)
             widget.setEnabled(enabled)
         return
 
@@ -230,12 +448,58 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget):
         QtCore.QTimer.singleShot(self.QSleepTime, self.updateGoLyr)
         return
 
+    def _switchToSelectedGoLayer(self):
+        """switches the layer selection to a GeoDin layer with selected features (10/2026)
+
+        If the GeoDin layer of the combo box has no selected features, the active layer of the
+        QGIS layer tree (if it is a GeoDin layer with selected features) or otherwise the first
+        GeoDin layer with selected features is used (e.g. the same layer was added twice).
+        """
+        if self.GoLyr is not None and self.GoLyr.selectedFeatureCount() > 0:
+            return False
+        cbo = self.cboLayers()
+        project = qgis.core.QgsProject.instance()
+        candidates = []
+        try:
+            active = qgis.utils.iface.activeLayer()
+            if active is not None:
+                candidates.append(active.id())
+        except Exception:
+            pass
+        candidates += [cbo.itemData(i) for i in range(cbo.count())]
+        for lyrId in candidates:
+            idx = cbo.findData(lyrId)
+            lyr = project.mapLayers().get(lyrId) if lyrId else None
+            if idx < 0 or lyr is None or not hasattr(lyr, 'selectedFeatureCount'):
+                continue
+            if lyr.selectedFeatureCount() > 0:
+                if idx != cbo.currentIndex():
+                    self.log.info("Layer selection switched to '%s' (selected features)", cbo.itemText(idx))
+                    cbo.setCurrentIndex(idx)
+                self.updateGoLyr()
+                return True
+        return False
+
     def execute(self):
         self.log.log(gqc._LOG_TRACE,"TRACE")
         try:
+            # 10/2026: use the current layer of the combo box (updateGoLyr() is deferred with a
+            #   timer) and give a clear message if there is no valid GeoDin layer - before:
+            #   AttributeError 'NoneType' object has no attribute 'selectedFeatureCount'
+            #   (e.g. layer of another DDX or of a database that is not in the current DDX)
+            self.updateGoLyr()
+            # 10/2026: GeoDin layer with selected features (active layer or other GeoDin layer)
+            self._switchToSelectedGoLayer()
+            if self.GoLyr is None:
+                cboExc = self.cboLayers().GoLyrExc
+                raise gqb.GxToolError("%s", _goLyrExcText(self.cboLayers()))
             # FeatureIds (INVIDs) der selektierten Feature ermitteln...
             if self.GoLyr.selectedFeatureCount() == 0:
-                raise gqb.GxToolError("Features not selected in layer '%s'", self.GoLyrText)
+                # raise gqb.GxToolError("Features not selected in layer '%s'", self.GoLyrText)
+                raise gqb.GxToolError(
+                    self.trans("No features selected in layer '%s'.\nSelect the objects in QGIS first (e.g. with 'Select Features by Area or Single Click')."),
+                    self.GoLyrText
+                )
             lyrFIds = [row.attribute(self.GoLyrAttrName) for row in self.GoLyr.selectedFeatures()]
             self.log.debug(
                 "Layer  %sn\tSelected features (Attr '%s')\n\t%s",
@@ -243,8 +507,22 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget):
                 json.dumps(lyrFIds, indent=4).replace("\n", "\n\t")
             )
             # GeODin-Methode 'createObjectSelection' ausführen...
-            gx.gApp.createObjectSelection(self.GoLyrQry, lyrFIds)
-        except (gqb.GxDDXException, gqb.GxToolError) as exc:
+            # gx.gApp.createObjectSelection(self.GoLyrQry, lyrFIds)
+            # 10/2026: GeoDin method of the menu (arrow) is passed to CreateObjectSelection,
+            #   GeoDin executes it at the new object selection (MethodID -1 = select only)
+            from GeODinQGIS.ui.gqgis_options import selectionMethod, warnMethodFailed, TOOL_SELECTION
+            methodID, methodPrms = selectionMethod(TOOL_SELECTION)
+            try:
+                gx.gApp.createObjectSelection(
+                    self.GoLyrQry, lyrFIds, methodID=methodID, methodPrms=methodPrms
+                )
+            except gqb.GxGComException as exc:
+                # selection created, but the method failed (e.g. cross section with one object)
+                if methodID == -1:
+                    raise
+                warnMethodFailed(TOOL_SELECTION, exc, self.log)
+        # 10/2026: + GxGComError (e.g. GeoDin busy) - before: "Unknown error on 'Create object group'"
+        except (gqb.GxDDXException, gqb.GxToolError, gqb.GxGComError) as exc:
             self.log.error(exc.msg(), exc_info=True)
             GQgis_MsgBox.error(self._parent,self.text(), exc.msg())
             # Layer in TOC selektieren...
@@ -269,7 +547,8 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget):
         self.log.log(gqc._LOG_TRACE,"TRACE")
         qActEnabled = True
         qActToolTip = ""
-        if not self.cboLayers().GoLyrExc:
+        # 10/2026: also without GeoDin layer (empty combo box: GoLyrExc and GoLyrQry None)
+        if not self.cboLayers().GoLyrExc and self.cboLayers().GoLyrQry is not None:
             qActToolTip = self.cboLayers().GoLyrQry.LongLabel
             self._GoLyr = self.cboLayers().GoLyr
             self._GoLyrAttrName = self.cboLayers().GoLyrAttrName
@@ -277,14 +556,20 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget):
             self._GoLyrText = self.cboLayers().GoLyrText
         else:
             qActEnabled = False
-            qActToolTip = self.cboLayers().GoLyrExc.msg()
-            self.log.debug(self.cboLayers().GoLyrExc.msg())
+            qActToolTip = _goLyrExcText(self.cboLayers())
+            self.log.debug(qActToolTip)
             self._GoLyr= None
             self._GoLyrAttrName = ""
             self._GoLyrQry = None
             self._GoLyrText = ""
 
-        self.setToolTip(qActToolTip)
+        # 10/2026: layer of the map tool
+        if getattr(self, 'mapTool', None) is not None:
+            self.mapTool.setLayer(self._GoLyr)
+            if self._GoLyr is None and self.mapTool.isActive():
+                self.canvas.unsetMapTool(self.mapTool)
+        # self.setToolTip(qActToolTip)   # 10/2026: tooltip with mode, see _updateModeMenu()
+        self.setLyrToolTip(qActToolTip)
         if (self.isEnabled() != qActEnabled):
             self.setEnabled(qActEnabled)
         return
@@ -401,11 +686,11 @@ class GQgis_Cbo_Layers(QtWidgets.QComboBox, GQgis_Bas_Widget):
         lyr = None
         lyrAttrName = 'INVID'
         if not lyrId:
-            exc = gqb.GxToolError("GeODin layer not selected")
+            exc = gqb.GxToolError("GeoDin layer not selected")
         else:
             lyr = qgis.core.QgsProject.instance().mapLayers().get(lyrId)
             if not lyr:
-                exc = gqb.GxToolError("GeODin layer not found  by ID '%s'", lyrId)
+                exc = gqb.GxToolError("GeoDin layer not found  by ID '%s'", lyrId)
             elif lyrAttrName not in [fld.name() for fld in lyr.fields()]:
                 exc = gqb.GxToolError("Field '%s' not found in layer '%s'", lyrAttrName, lyrText)
         return exc, lyr, lyrId, lyrText, lyrAttrName
@@ -613,7 +898,7 @@ class GQgis_Cbo_Layers(QtWidgets.QComboBox, GQgis_Bas_Widget):
                     lyrSortText = "%04d" % lyrNode.parent().children().index(lyrNode)
                     grpNode = lyrNode.parent()
                     while grpNode.parent() is not None:
-                        lyrLongName = "%s\%s" % (grpNode.name(), lyrLongName)
+                        lyrLongName = "%s\\%s" % (grpNode.name(), lyrLongName)
                         lyrSortText = "%04d %s" % (
                             grpNode.parent().children().index(grpNode), lyrSortText
                         )
@@ -639,7 +924,7 @@ class GQgis_Cbo_Layers(QtWidgets.QComboBox, GQgis_Bas_Widget):
             lyrSortText = "%04d" % lyrNode.parent().children().index(lyrNode)
             grpNode = lyrNode.parent()
             while grpNode.parent() is not None:
-                lyrLongName = "%s\%s" % (grpNode.name(), lyrLongName)
+                lyrLongName = "%s\\%s" % (grpNode.name(), lyrLongName)
                 lyrSortText = "%04d %s" % (
                     grpNode.parent().children().index(grpNode), lyrSortText
                 )
@@ -731,6 +1016,9 @@ class GQgis_MapToolHotlink(qgis.gui.QgsMapToolIdentifyFeature):
                 self.GoLyrPrmsSelectObject['ObjectID'] = feature.attribute(self.GoLyrAttrName)
                 self.log.debug(str(self.GoLyrPrmsSelectObject))
                 gx.gApp.selectObject(self.GoLyrPrmsSelectObject)
+                # 10/2026: GeoDin method after the selection (menu of the 'Selection' button)
+                from GeODinQGIS.ui.gqgis_options import runAfterSelection, TOOL_HOTLINK
+                runAfterSelection(TOOL_HOTLINK, self.log)
             except gqb.GQgisException as exc:
                 self.log.error(exc.msg(), exc_info=True)
                 GQgis_MsgBox.error(None, 'Hotlink Tool', exc.msg())
@@ -759,7 +1047,8 @@ class GQgis_MapToolHotlink(qgis.gui.QgsMapToolIdentifyFeature):
         self.log.log(gqc._LOG_TRACE,"TRACE")
         qActEnabled = True
         qActToolTip = ""
-        if not self.cboLayers().GoLyrExc:
+        # 10/2026: also without GeoDin layer (empty combo box: GoLyrExc and GoLyrQry None)
+        if not self.cboLayers().GoLyrExc and self.cboLayers().GoLyrQry is not None:
             qActToolTip = self.cboLayers().GoLyrQry.LongLabel
             # 04/2024 j.ebert, QgsLayer speichern, den das QgsMapToolIdentifyFeature nutzt
             #                  Der Layer ist write only (QgsMapToolIdentifyFeaturesetLayer())!? :(
@@ -772,17 +1061,160 @@ class GQgis_MapToolHotlink(qgis.gui.QgsMapToolIdentifyFeature):
 ##                self.activate()
         else:
             qActEnabled = False
-            qActToolTip = self.cboLayers().GoLyrExc.msg()
-            self.log.debug(self.cboLayers().GoLyrExc.msg())
+            qActToolTip = _goLyrExcText(self.cboLayers())
+            self.log.debug(qActToolTip)
             self._GoLyrAttrName = ""
             self._GoLyrPrmsSelectObject = {}
             self.deactivate()
 
         if self.action():
-            self.action().setToolTip(qActToolTip)
+            # 10/2026: tooltip with the mode of the menu (arrow)
+            if hasattr(self.action(), 'setLyrToolTip'):
+                self.action().setLyrToolTip(qActToolTip)
+            else:
+                self.action().setToolTip(qActToolTip)
             if (self.action().isEnabled() != qActEnabled):
                 self.action().setEnabled(qActEnabled)
         return
+
+class GQgis_MapToolSelection(qgis.gui.QgsMapTool):
+    """map tool to select objects of the GeoDin layer by rectangle or click (10/2026)
+
+    After each selection (mouse button released) the callback is called with the number of
+    selected features; the action 'Selection' then creates the object selection in GeoDin
+    and executes the function of the menu (arrow).
+        drag            select by rectangle
+        click           select the object at the point (search radius of QGIS)
+        Shift           add to the current selection
+        Ctrl            remove from the current selection (no GeoDin function)
+    """
+
+    def __init__(self, canvas, callback=None):
+        super().__init__(canvas)
+        self.log = logging.getLogger(f"{gqc._LOG_PARENTS}{self.__class__.__name__}")
+        self._callback = callback
+        self._layer = None
+        self._start = None          # (pixel point, map point)
+        self._rubberBand = None
+        try:
+            self.setCursor(qgis.core.QgsApplication.getThemeCursor(
+                qgis.core.QgsApplication.Cursor.Select
+            ))
+        except Exception:
+            self.setCursor(QtGui.QCursor(QtCore.Qt.CursorShape.CrossCursor))
+
+    def setLayer(self, layer):
+        self._layer = layer
+
+    @staticmethod
+    def _nearestFeatureId(layer, rect, point):
+        """returns the id of the feature in rect nearest to point (layer coordinates) or None"""
+        best, bestDist = None, None
+        pt = qgis.core.QgsGeometry.fromPointXY(qgis.core.QgsPointXY(point))
+        req = qgis.core.QgsFeatureRequest().setFilterRect(rect)
+        try:
+            req.setNoAttributes()
+        except AttributeError:
+            pass
+        for feat in layer.getFeatures(req):
+            geom = feat.geometry()
+            if geom is None or geom.isEmpty():
+                continue
+            dist = geom.distance(pt)
+            if bestDist is None or dist < bestDist:
+                best, bestDist = feat.id(), dist
+        return best
+
+    def _newRubberBand(self):
+        try:
+            geomType = qgis.core.Qgis.GeometryType.Polygon
+        except AttributeError:
+            geomType = qgis.core.QgsWkbTypes.PolygonGeometry
+        rb = qgis.gui.QgsRubberBand(self.canvas(), geomType)
+        rb.setStrokeColor(QtGui.QColor(255, 0, 0, 200))
+        rb.setFillColor(QtGui.QColor(255, 0, 0, 40))
+        rb.setWidth(1)
+        return rb
+
+    def _resetRubberBand(self):
+        if self._rubberBand is not None:
+            self._rubberBand.reset()
+            self.canvas().scene().removeItem(self._rubberBand)
+            self._rubberBand = None
+
+    def canvasPressEvent(self, e):
+        if e.button() != QtCore.Qt.MouseButton.LeftButton:
+            return
+        self._start = (e.pixelPoint(), e.mapPoint())
+
+    def canvasMoveEvent(self, e):
+        if self._start is None:
+            return
+        if self._rubberBand is None:
+            self._rubberBand = self._newRubberBand()
+        rect = qgis.core.QgsRectangle(self._start[1], e.mapPoint())
+        self._rubberBand.setToGeometry(qgis.core.QgsGeometry.fromRect(rect), None)
+
+    def canvasReleaseEvent(self, e):
+        if self._start is None or e.button() != QtCore.Qt.MouseButton.LeftButton:
+            return
+        startPx, startMap = self._start
+        self._start = None
+        self._resetRubberBand()
+        layer = self._layer
+        if layer is None:
+            return
+        try:
+            dx = abs(e.pixelPoint().x() - startPx.x())
+            dy = abs(e.pixelPoint().y() - startPx.y())
+            isClick = dx < 3 and dy < 3
+            if isClick:
+                # click: rectangle with the QGIS search radius
+                # r = qgis.gui.QgsMapTool.searchRadiusMU(self.canvas())
+                # 11/2026: selection radius in pixels (settings menu, default 6 px), the QGIS
+                #   search radius (default 2 mm) needed a very exact click
+                from GeODinQGIS.ui.gqgis_options import selectionRadiusPx
+                r = selectionRadiusPx() * self.canvas().mapUnitsPerPixel()
+                p = e.mapPoint()
+                rect = qgis.core.QgsRectangle(p.x() - r, p.y() - r, p.x() + r, p.y() + r)
+            else:
+                rect = qgis.core.QgsRectangle(startMap, e.mapPoint())
+            rect = self.toLayerCoordinates(layer, rect)
+            mods = e.modifiers()
+            behavior = _selectBehavior("SetSelection")
+            if mods & QtCore.Qt.KeyboardModifier.ShiftModifier:
+                behavior = _selectBehavior("AddToSelection")
+            elif mods & QtCore.Qt.KeyboardModifier.ControlModifier:
+                behavior = _selectBehavior("RemoveFromSelection")
+            # layer.selectByRect(rect, behavior)
+            if isClick:
+                # 11/2026: click selects only the object nearest to the clicked point
+                fid = self._nearestFeatureId(layer, rect, self.toLayerCoordinates(layer, e.mapPoint()))
+                layer.selectByIds([fid] if fid is not None else [], behavior)
+            else:
+                layer.selectByRect(rect, behavior)
+            count = layer.selectedFeatureCount()
+            self.log.debug("Selected features in '%s': %d", layer.name(), count)
+            if mods & QtCore.Qt.KeyboardModifier.ControlModifier:
+                return
+            if self._callback:
+                self._callback(count)
+        except Exception:
+            self.log.critical("Unknown error on 'Select objects'", exc_info=True)
+
+    def deactivate(self):
+        self._start = None
+        self._resetRubberBand()
+        super().deactivate()
+
+
+def _selectBehavior(name):
+    """Qgis.SelectBehavior (QGIS >= 3.22) or QgsVectorLayer.SelectBehavior (10/2026)"""
+    try:
+        return getattr(qgis.core.Qgis.SelectBehavior, name)
+    except AttributeError:
+        return getattr(qgis.core.QgsVectorLayer, name)
+
 
 def main():
     pass

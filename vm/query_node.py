@@ -43,6 +43,9 @@ class GoNodeQuery(GoNode):
         'GxTypINV':     (23, ('gTypINV',), False),
         'GxQryLOC':     (24, ('gQry',), False),
         'GxQryINV':     (24, ('gQry',), False),
+        # 11/2026: GeoDin system queries (same icon as GeoDin queries, see gx/sysquery.py)
+        'GxSysLOC':     (25, ('gQry',), False),
+        'GxSysINV':     (25, ('gQry',), False),
     }
 
 
@@ -54,6 +57,9 @@ class GoNodeQuery(GoNode):
         super().__init__(parent, tag)
         self.setText(self.textColumn(), self.tag().Label)
         self.orderText()
+        # 10/2026: number of objects/measurement points in brackets, e.g. 'Boreholes (42)'
+        #   only displayed - sorting (orderText) and layer names (layerName) use the label
+        self.setText(self.textColumn(), self.displayText())
         self._DataPath = None
 
     @property
@@ -75,6 +81,17 @@ class GoNodeQuery(GoNode):
         alias = names[mode] if mode < len(names) else names[0]
         self.log.log(gqc._LOG_TRACE, alias)
         return alias
+
+    def displayText(self):
+        """returns the text shown in the Explorer: label and number of objects/measurement points
+
+        10/2026
+        """
+        text = self.tag().Label
+        count = getattr(self.tag(), 'Count', None)
+        if count is not None:
+            text = f"{text} ({count})"
+        return text
 
     def layerName(self):
         """returns QGIS layer name for this GoQuery
@@ -167,7 +184,8 @@ class GoNodeQuery(GoNode):
         action = menu.addAction(self.translate("Add layer"))
         action.triggered.connect(self.onLayerAdd)
         action.setEnabled(not self._tag.isDisabled())
-        action = menu.addAction(self.translate("Zoom to"))
+        # 10/2026: context menu texts reviewed (German translation in res/resources_de.json)
+        action = menu.addAction(self.translate("Zoom to layer(s)"))
         action.triggered.connect(self.onLayerZoomTo)
         action.setEnabled((not self._tag.isDisabled()) and hasLyrs)
         action = menu.addAction(self.translate("Select layer(s)"))
@@ -180,11 +198,12 @@ class GoNodeQuery(GoNode):
         action.triggered.connect(self.onLayerRemove)
         action.setEnabled((not self._tag.isDisabled()) and hasLyrs)
         menu.addSeparator()
-        action = menu.addAction(self.translate("Remove"))
+        # 10/2026: 'Remove' -> 'Remove exported data' (only active if there is no layer, but an export file)
+        action = menu.addAction(self.translate("Remove exported data"))
         action.triggered.connect(self.onLayerRemove)
         action.setEnabled(self.DataPath.exists() and (not hasLyrs))
         menu.addSeparator()
-        action = menu.addAction(self.QIcon('gIcon'), self.translate("GeODin"))
+        action = menu.addAction(self.QIcon('gIcon'), self.translate("Show in GeoDin"))
         action.triggered.connect(self.onGeODin)
         action.setEnabled(not self._tag.isDisabled())
         self.log.debug('ContextMenu (ActionCount %d) exce_', len(menu.actions()))
@@ -205,21 +224,27 @@ class GoNodeQuery(GoNode):
         01.06.2023 j.ebert
         """
         self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)
+        # 10/2026: returns True if the query was selected in GeoDin - the export (method 60)
+        #   exports the node selected in GeoDin, so it must not run after a failed selection
+        #   (before: the data of the previously selected node were added as layer)
         try:
             gx.gApp.selectObject(self._tag)
+            return True
+        except gqb.GxGAppBusyError as exc:
+            MsgBox.error(plugin().parent(), 'GeoDin', exc.msg())
         except gqb.GxGComException as exc:
-            self.tag()._error = "Query '%s' not found in GeODin object manager" % self.tag().Name
+            self.tag()._error = "Query '%s' not found in GeoDin object manager" % self.tag().Name
             self.update()
-            MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+            MsgBox.error(plugin().parent(), 'GeoDin', exc.msg())
         except gqb.GxException as exc:
-            MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+            MsgBox.error(plugin().parent(), 'GeoDin', exc.msg())
         except Exception:
             MsgBox.error(
                 plugin().parent(),
-                'GeODin',
+                'GeoDin',
                 self.translate("Unknown error on select query")
             )
-        return
+        return False
 
     def onLayerAdd(self):
         """updates query result/GEOJSON file
@@ -228,15 +253,29 @@ class GoNodeQuery(GoNode):
         """
         self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)
         # Abfrage im GOM selektieren...
-        self.onGeODin()
+        # self.onGeODin()
+        # 10/2026: no layer if the query could not be selected in GeoDin
+        if not self.onGeODin():
+            return
         # DataSource der Abfrage aktualsieren...
         try:
             # DataSource der Abfrage/des Layers prüfen und ggf. erstellen...
             if not self.DataPath.exists():
+                # 10/2026: GeoDin may report an error during the export (e.g. access
+                #   violation, GIX-10201) but still writes the file -> add the layer only
+                #   if the file exists and is valid
                 self.onLayerUpdate()
+            if not self.DataPath.exists():
+                raise gqb.GxException(
+                    "Layer data file '%s' was not created by GeoDin", str(self.DataPath)
+                )
             # QGIS Layer erstellen
 ##            newLyr = qgis.core.QgsVectorLayer(str(self.DataPath), self.tag().Name, "ogr")
             newLyr = qgis.core.QgsVectorLayer(str(self.DataPath), self.layerName(), "ogr")
+            if not newLyr.isValid():
+                raise gqb.GxException(
+                    "Layer data file '%s' could not be opened", str(self.DataPath)
+                )
             # EPSG ermitteln...
             # 01.03.2023 j.ebert, Anmerkung
             #   Nach GeoJSON Specification (RFC 7946) ist kein CRS enhalten, sondern immer WGS 1983.
@@ -248,22 +287,33 @@ class GoNodeQuery(GoNode):
             newLyrEPSGFld = 'EPSG'
             newLyrEPSGVal = ""
             if newLyrEPSGFld in [fld.name() for fld in newLyr.fields()]:
-                newLyrEPSGVal = next(newLyr.getFeatures()).attribute(newLyrEPSGFld)
+                firstFeat = next(newLyr.getFeatures(), None)
+                if firstFeat is not None:
+                    newLyrEPSGVal = firstFeat.attribute(newLyrEPSGFld)
             if newLyrEPSGVal:
                 newLyrCRS = qgis.core.QgsCoordinateReferenceSystem(f"EPSG:{newLyrEPSGVal}")
-                if newLyrCRS.isValid:
+                if newLyrCRS.isValid():
                     newLyr.setCrs(newLyrCRS)
+            # 10/2026: layer style - style file (*.qml) from 'Layer styles...' (toolbar menu),
+            #   otherwise objects: red circles with labels (long name), see ui/gqgis_styles.py
+            try:
+                from GeODinQGIS.ui.gqgis_styles import applyLayerStyle
+                styleMsg = applyLayerStyle(newLyr, self.tag().Kind[-3:])
+                if styleMsg:
+                    plugin().iface().messageBar().pushWarning("GeoDinQGIS", styleMsg.replace("\n", " "))
+            except Exception:
+                self.log.error("Layer style could not be applied", exc_info=True)
             # QGIS Layer der akt. Map hizufügen
             qgis.core.QgsProject.instance().addMapLayer(newLyr)
         except gqb.GxException as exc:
             self.log.debug("", exc_info=True)
-            MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+            MsgBox.error(plugin().parent(), 'GeoDin', exc.msg())
         except Exception:
             self.log.debug("Major disaster...", exc_info=True)
             MsgBox.error(
                 plugin().parent(),
-                'GeODin',
-                self.translate("Unknown error on update query")
+                'GeoDin',
+                self.translate("Unknown error on add layer")
             )
         return
 
@@ -295,13 +345,13 @@ class GoNodeQuery(GoNode):
             self.log.debug("Remove query '%s' successfully", self.tag().Name)
         except gqb.GxException as exc:
             self.log.debug("", exc_info=True)
-            MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+            MsgBox.error(plugin().parent(), 'GeoDin', exc.msg())
         except Exception:
             self.log.debug("Major disaster...", exc_info=True)
             MsgBox.error(
                 plugin().parent(),
-                'GeODin',
-                self.translate("Unknown error on update query")
+                'GeoDin',
+                self.translate("Unknown error on remove layers")
             )
         return
 
@@ -313,7 +363,7 @@ class GoNodeQuery(GoNode):
         self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)
         lyrTvw = qgis.utils.iface.layerTreeView()
         try:
-            lyrTvw.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection )
+            lyrTvw.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.MultiSelection )
             # Layer selektieren...
             lyrs = self.layers()
             for lyr in lyrs:
@@ -322,21 +372,28 @@ class GoNodeQuery(GoNode):
             self.log.debug("Major disaster...", exc_info=True)
             MsgBox.error(
                 plugin().parent(),
-                'GeODin',
+                'GeoDin',
                 self.translate("Unknown error on select layers")
             )
         finally:
-            lyrTvw.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection )
+            lyrTvw.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection )
         return
 
     def onLayerUpdate(self):
         """updates query result/GEOJSON file
 
+        returns:
+            True if the GEOJSON file was created/updated successfully, otherwise False
+
         01.08.2023 j.ebert
         """
+        success = False
         self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)
         # Abfrage im GOM selektieren...
-        self.onGeODin()
+        # self.onGeODin()
+        # 10/2026: no export if the query could not be selected in GeoDin
+        if not self.onGeODin():
+            return success
         # DataSource der Abfrage aktualsieren...
         dataPath = self.DataPath
         try:
@@ -361,6 +418,7 @@ class GoNodeQuery(GoNode):
                 dataPath.write_text(tempPath.read_text())
                 tempPath.unlink()
             self.log.debug("Update %s successfully", str(dataPath))
+            success = True
             # Layer der Query "aktualisieren"...
             for lyr in self.layers():
 ##                lyr.dataProvider().reloadData()
@@ -372,15 +430,15 @@ class GoNodeQuery(GoNode):
 ##            plugin().iface().mapCanvas().refreshAllLayers()
         except gqb.GxException as exc:
             self.log.debug("", exc_info=True)
-            MsgBox.error(plugin().parent(), 'GeODin', exc.msg())
+            MsgBox.error(plugin().parent(), 'GeoDin', exc.msg())
         except Exception:
             self.log.debug("Major disaster...", exc_info=True)
             MsgBox.error(
                 plugin().parent(),
-                'GeODin',
+                'GeoDin',
                 self.translate("Unknown error on update query")
             )
-        return
+        return success
 
     def onLayerZoomTo(self):
         self.log.log(gqc._LOG_TRACE,"Query '%s'...", self.tag().Name)

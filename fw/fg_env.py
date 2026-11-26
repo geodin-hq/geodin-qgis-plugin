@@ -171,15 +171,36 @@ Application environment:
 
         05.09.2022 J.Ebert
         """
+        # 10/2026: the variables are optional - show 'not set (default: ...)' instead of
+        #   "environment variable doesn't exist!" (looked like an error)
+        # (old: os.getenv('QGIS_PLUGINPATH', "environment variable doesn't exist!") etc.)
+        try:
+            from qgis.core import QgsApplication
+            dftPluginPath = str(Path(QgsApplication.qgisSettingsDirPath()) / 'python' / 'plugins')
+        except Exception:
+            dftPluginPath = str(self.AppPath.parent)
+        dftConfigDir = str(self.AppPath / 'config')
+        dftLogFolder = str(Path(os.getenv('LOCALAPPDATA', Path.home()), COMPANY, PRODUCT, 'Logs'))
         txt = f"""
 System environment:
-    QGIS_PLUGINPATH         {os.getenv('QGIS_PLUGINPATH', "environment variable doesn't exist!")}
+    QGIS_PLUGINPATH         {self._envText('QGIS_PLUGINPATH', dftPluginPath)}
 
-    GEODINQGIS_CONFIG_DIR   {os.getenv('GEODINQGIS_CONFIG_DIR', "environment variable doesn't exist!")}
-    GEODINQGIS_LOG_FOLDER   {os.getenv('GEODINQGIS_LOG_FOLDER', "environment variable doesn't exist!")}
+    GEODINQGIS_CONFIG_DIR   {self._envText('GEODINQGIS_CONFIG_DIR', dftConfigDir)}
+    GEODINQGIS_LOG_FOLDER   {self._envText('GEODINQGIS_LOG_FOLDER', dftLogFolder)}
 """
         self.log.debug(txt)
         return txt
+
+    @staticmethod
+    def _envText(name, default=""):
+        """returns the value of the environment variable or 'not set (default: ...)'
+
+        10/2026
+        """
+        val = os.getenv(name)
+        if val:
+            return val
+        return f"not set (default: {default})" if default else "not set"
 
     @classmethod
     def isFugroDE(cls):
@@ -210,27 +231,27 @@ class Config(object):
         """configuartion file"""
 
     def __getitem__(self, key):
-        with shelve.open(str(self.__ConfigFile)) as sFile:
+        with shelve.open(str(self.__ConfigFile)) as sFile:  # nosec B301 - own per-user settings file
             value = sFile[key]
         return value
 
     def __setitem__(self, key, value):
-        with shelve.open(str(self.__ConfigFile)) as sFile:
+        with shelve.open(str(self.__ConfigFile)) as sFile:  # nosec B301 - own per-user settings file
             sFile[key] = value
         return
 
     def __delitem__(self, key):
-        with shelve.open(str(self.__ConfigFile)) as sFile:
+        with shelve.open(str(self.__ConfigFile)) as sFile:  # nosec B301 - own per-user settings file
             value = sFile.pop(key)
         return value
 
     def get(self, key, default=None):
-        with shelve.open(str(self.__ConfigFile)) as sFile:
+        with shelve.open(str(self.__ConfigFile)) as sFile:  # nosec B301 - own per-user settings file
             value = sFile.get(key, default)
         return value
 
     def pop(self, key, default=None):
-        with shelve.open(str(self.__ConfigFile)) as sFile:
+        with shelve.open(str(self.__ConfigFile)) as sFile:  # nosec B301 - own per-user settings file
             value = sFile.pop(key, default)
         return value
 

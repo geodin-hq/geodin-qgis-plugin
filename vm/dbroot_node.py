@@ -41,7 +41,7 @@ class GoNodeDBGroup(bas.GoNode):
         super().__init__(parent, tag)
         self._GOMGroup = str(tag)
         self.setText(self.textColumn(), self._GOMGroup)
-        self.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.DontShowIndicatorWhenChildless)
+        self.setChildIndicatorPolicy(QtWidgets.QTreeWidgetItem.ChildIndicatorPolicy.DontShowIndicatorWhenChildless)
 
     @property
     def DbRef(self):
@@ -80,7 +80,7 @@ class GoNodeDBGroup(bas.GoNode):
             gDB.add()
             # Database dem Explorer/Catalog (QTreeWidget) hinzufügen...
             node = GoNodeDatabase(self, gDB)
-            self.sortChildren(self.orderColumn(), QtCore.Qt.AscendingOrder)
+            self.sortChildren(self.orderColumn(), QtCore.Qt.SortOrder.AscendingOrder)
             self.setExpanded(expandNode)
         except gqb.GxException as exc:
             MsgBox.error(plugin().parent(), self.translate("Add Database"), exc.msg())
@@ -138,10 +138,9 @@ class GoNodeDBRoot(GoNodeDBGroup):
     25.05.2023 j.ebert
     """
 
-    def __new__(cls, parent, tag=""):
-        if not hasattr(cls, 'instance'):
-            cls.instance = super(GoNodeDBRoot, cls).__new__(cls, parent, tag)
-        return cls.instance
+    # 10/2026, QGIS 4: PyQt6/sip crashes (segfault) if __new__ of a Qt class is overridden,
+    #   so the singleton is no longer implemented via __new__
+    #   singleton instance is registered in __init__() as class attribute 'instance'
 
     def __init__(
         self,
@@ -152,6 +151,7 @@ class GoNodeDBRoot(GoNodeDBGroup):
         #   DBRoot hat immer den Text "Databases" und als tag/GOMGroup ""!
         #   -> init Superclass 'GoNodeDBGroup' mit Argumenten parent (QTreeWidget) und tag=""
         super().__init__(parent, "")
+        GoNodeDBRoot.instance = self
         self.setText(self.textColumn(), self.translate("Databases"))
 
 

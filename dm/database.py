@@ -455,7 +455,12 @@ class GoDatabase(bas.GoBaseClass):
         self._GT_PRJDEFS = self._GxCnn.load_PRJDEFS()
         self._GT_GLQEXEC = None
         self._GT_LOCTYPES = self._GxCnn.load_LOCTYPES()
-        self._GT_LOCTABTY = None
+        # self._GT_LOCTABTY = None
+        # 10/2026: tables of the object types (names of the measurement point types in GeoDin)
+        try:
+            self._GT_LOCTABTY = self._GxCnn.load_LOCTABTY()
+        except Exception:
+            self._GT_LOCTABTY = None
         self._GT_INVTYPES = self._GxCnn.load_INVTYPES()
         self._GT_ADCDATA = self._GxCnn.load_ADCDATA()
         # Daten aus DDX laden...
@@ -532,7 +537,7 @@ class GoDatabase(bas.GoBaseClass):
             if not tmpPrjs:
                 # Wenn kein 'neues' Projekt gefunden wurde,
                 # dann exitistiert das Projekt nicht mehr in der GeODin-DB
-                usedPrj._error = "No longer in GeODin database"
+                usedPrj._error = "No longer in GeoDin database"
             else:
                 # Wenn eine 'neues' Projekt gefunden wurde,
                 # dann Projekt mit dem 'neuen' Projekt überladen
@@ -560,37 +565,75 @@ class GoDatabase(bas.GoBaseClass):
         newQrys = []
         # Abfragen der Objektarten laden/initialisieren...
         lstTypes = self._GxCnn.load_ExistingLOCTYPES(prjID)
+        # 10/2026: number of objects per object type (None if not available)
+        locCounts = self._GxCnn.load_LOCTYPECounts(prjID)
         if self.log.level <= logging.DEBUG:
             logRows = [str(row) for row in self._GT_LOCTYPES]
             self.log.debug(
-                "GT_LOCTYPES: \n\t%s",
+                "GT_LOCTYPES (PrjID %s): \n\t%s",
                 prjID, json.dumps(logRows, indent=4).replace("\n", "\n\t")
             )
         for prm in [row for row in self._GT_LOCTYPES if row[0] in lstTypes]:
             newQrys.append(GoQuery.from_TypLOC(self, prjID, prm))
+            if locCounts is not None:
+                newQrys[-1]._Count = locCounts.get(prm[0], 0)
         if lstTypes:
             # Wenn die Liste der Objektarten nicht leer ist,
             # dann Abfrage 'Alle Objekte' hinzufügen...
             newQrys.insert(0, GoQuery.from_TypALL(self, prjID))
+            if locCounts is not None:
+                newQrys[0]._Count = sum(locCounts.values())
         # Abfragen der Messpunktarten laden/initialisieren...
-        lstTypes = self._GxCnn.load_ExistingINVTYPES(prjID)
+        # 10/2026: number of measurement points per type, the keys are the existing INV_TYPES
+        #   (same query as load_ExistingINVTYPES(), so no additional database access)
+        # lstTypes = self._GxCnn.load_ExistingINVTYPES(prjID)
+        invCounts = self._GxCnn.load_ExistingINVTYPECounts(prjID)
+        lstTypes = list(invCounts)
         if self.log.level <= logging.DEBUG:
             logRows = [str(row) for row in self._GT_INVTYPES]
             self.log.debug(
-                "GT_INVTYPES: \n\t%s",
+                "GT_INVTYPES (PrjID %s): \n\t%s",
                 prjID, json.dumps(logRows, indent=4).replace("\n", "\n\t")
             )
         for prm in [row for row in self._GT_INVTYPES if row[0] in lstTypes]:
             newQrys.append(GoQuery.from_TypINV(self, prjID, prm))
+            newQrys[-1]._Count = invCounts.get(prm[0], 0)
         # GeODin-Abfragen laden/initialisieren...
         if self.log.level <= logging.DEBUG:
             logRows = [str(row) for row in self._GT_PRJDEFS]
             self.log.debug(
-                "GT_INVTYPES: \n\t%s",
+                "GT_PRJDEFS (PrjID %s): \n\t%s",
                 prjID, json.dumps(logRows, indent=4).replace("\n", "\n\t")
             )
         for prm in [row for row in self._GT_PRJDEFS if row[0] == prjID]:
             newQrys.append(GoQuery.from_PrjDEF(self, prjID, prm))
+        # 11/2026: GeoDin system queries (*.GSQ)
+        #   GeoDin setting "Query beneath the object type" (gx/sysquery.py LEVELS):
+        #   project queries -> under every project, database queries -> under the database;
+        #   database, project, object, measurement point can't be selected with SelectObject
+        #   (GIX-10364) and are not offered; unknown level -> project queries
+        from GeODinQGIS.gx import sysquery
+        wanted = (
+            sysquery.LEVEL_DATABASE_QUERIES if prjID == self.DBPrjID
+            else sysquery.LEVEL_PROJECT_QUERIES
+        )
+        try:
+            sysQrys = gx.gApp.systemQueries()
+        except Exception:
+            self.log.error("System queries not available", exc_info=True)
+            sysQrys = []
+        names = set(qry.Name for qry in newQrys if qry.Kind in ('GxQryLOC', 'GxQryINV'))
+        for prm in sysQrys:
+            level = prm.get('Level')
+            if level is None:
+                level = sysquery.LEVEL_PROJECT_QUERIES
+            if level != wanted:
+                continue
+            if prm['Name'] in names:
+                # a GeoDin query of the project with the same name is preferred
+                continue
+            names.add(prm['Name'])
+            newQrys.append(GoQuery.from_SysQRY(self, prjID, prm))
         # Abfragen der akt. PrjID aktualisieren/überladen....
         if self.log.level <= logging.DEBUG:
             logRows = [str(row) for row in newQrys]
@@ -614,7 +657,7 @@ class GoDatabase(bas.GoBaseClass):
             if not tmpQrys:
                 # Wenn keine 'neue' Abfrage gefunden wurde,
                 # dann exitistiert die Abfrage nicht mehr in der GeODin-DB
-                prjQry._error = "No longer in GeODin database"
+                prjQry._error = "No longer in GeoDin database"
             else:
                 # Wenn eine 'neue' Abfrage gefunden wurde,
                 # dann Abfrage mit der 'neue' Abfrage überladen
@@ -776,7 +819,7 @@ class GoDatabase(bas.GoBaseClass):
             raise gqb.GxDDXException("Database '%s' could not be removed", self.Name)
         return
 
-    def geodin(sel):
+    def geodin(self):
         """select GeODin Database in GOM
 
         31.05.2023 j.ebert

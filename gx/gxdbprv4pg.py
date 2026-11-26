@@ -56,19 +56,19 @@ class GxDbProvider4PG (GxDbProvider):
             self.log.debug(
                 "cnnPrps = %s\n\tcnnPrms = %s\n\tcnnStr = \"%s\"",
                 re.sub(
-                    "\"password\": \"\S+\"",
+                    "\"password\": \"\\S+\"",
                     "\"password\": \"%s\"" % self.hiddenPwd(),
                     json.dumps(self._Parent._CnnPrps, indent=4).replace("\n", "\n\t"),
                     re.IGNORECASE
                 ),
                 re.sub(
-                    "\"password=\S+\"",
+                    "\"password=\\S+\"",
                     "\"password=%s\"" % self.hiddenPwd(),
                     json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
                     re.IGNORECASE
                 ),
                 re.sub(
-                    "password=\S+",
+                    "password=\\S+",
                     "password=%s" % self.hiddenPwd(),
                     cnnStr,
                     re.IGNORECASE

@@ -3,7 +3,7 @@
 """
 __version__ = '0.1.0'
 __author__ = 'J. Ebert'
-__licens__ = '<your licence>'
+__license__ = 'GPL-2.0-or-later'
 __author_email__ = 'J.Ebert@fugro.com'
 __maintainer_email__ = 'support@geodin.com'
 __url__ = 'www.geodin.com'

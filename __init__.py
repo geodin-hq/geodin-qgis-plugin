@@ -21,37 +21,65 @@
  ***************************************************************************/
  This script initializes the plugin, making it known to QGIS.
 """
-__version__ = '3.0.22xx'
-__licens__ = '<your licence>'
+__version__ = '4.0.0.2644'   # 10/2026 (before: '3.0.22xx'), the plugin version is in metadata.txt
+__license__ = 'GPL-2.0-or-later'
 __maintainer_email__ = 'support@geodin.com'
 __url__ = 'www.geodin.com'
 import logging
-print("import GeODinQGIS Modul")
 ##from fw.fg_logging import LogConfigurator
 ##LogConfigurator.config()
 
-from pathlib import Path
-# Achtung, Reihenfolge beachten!!!
-#   1a) fw.fg_env und fw.fg_res importieren
-#   1b) globals env und res instanziieren
-#   2a) gqgis_app importieren
-#   2b) globlas app instanziieren
-from GeODinQGIS.fw.fg_logging import (
-    LogFormatterTrace
-)
-from GeODinQGIS.gqgis_config import (
-    LogFilterCOM,
-    LogFilterSQL,
-    LogFilterTRACE
-)
-from .fw import (
-    env,
-    res
-)
-from .gqgis_app import GQgis_App
-app = GQgis_App()
+import importlib.util
+import sys
+
+
+def _missing_requirement():
+    if sys.platform != 'win32':
+        return 'GeoDinQGIS requires Windows and GeoDin.'
+    if importlib.util.find_spec('win32com') is None:
+        return ('GeoDinQGIS requires the Python package pywin32: run "python -m pip install pywin32" '
+                'in the OSGeo4W Shell as administrator, then restart QGIS.')
+    return None
+
+
+_MISSING_REQUIREMENT = _missing_requirement()
+
+if _MISSING_REQUIREMENT is None:
+    from pathlib import Path
+    # Achtung, Reihenfolge beachten!!!
+    #   1a) fw.fg_env und fw.fg_res importieren
+    #   1b) globals env und res instanziieren
+    #   2a) gqgis_app importieren
+    #   2b) globlas app instanziieren
+    from GeODinQGIS.fw.fg_logging import (
+        LogFormatterTrace
+    )
+    from GeODinQGIS.gqgis_config import (
+        LogFilterCOM,
+        LogFilterSQL,
+        LogFilterTRACE
+    )
+    from .fw import (
+        env,
+        res
+    )
+    from .gqgis_app import GQgis_App
+    app = GQgis_App()
 
 from qgis import utils
+
+
+class _UnavailablePlugin:
+    def __init__(self, iface, message):
+        self._iface = iface
+        self._message = message
+
+    def initGui(self):
+        self._iface.messageBar().pushCritical('GeoDinQGIS', self._message)
+
+    def unload(self):
+        pass
+
 
 # noinspection PyPep8Naming
 def classFactory(iface):  # pylint: disable=invalid-name
@@ -60,11 +88,12 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
     """
-    print(__name__, 'importing...')
+    if _MISSING_REQUIREMENT is not None:
+        return _UnavailablePlugin(iface, _MISSING_REQUIREMENT)
     from .fw import LogConfigurator
     LogConfigurator.config()
     log = logging.getLogger('GeODinQGIS')
-    log.info('GeODinQGIS load')
+    log.info('GeoDinQGIS load')
 
 ##    from .GeODinQGIS import GeODinQGIS
 ##    return GeODinQGIS(iface)

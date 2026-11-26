@@ -9,13 +9,13 @@ import datetime
 import json
 import logging
 import os
-import random
 import re
 import struct
 import sys
 import time
 import traceback
 import win32com.client
+from collections import Counter
 from pathlib import Path
 
 import GeODinQGIS.gqgis_base as gqb
@@ -38,9 +38,15 @@ try:
     )
 except:
     _log.critical("Failed to import %s modules", 'pyodbc', exc_info=True)
+try:
+    from GeODinQGIS.gx.gxdbprv4ora import (
+        GxDbProvider4ORA
+    )
+except ImportError:
+    _log.info("Python module '%s' not installed, Oracle databases are not supported", 'oracledb')
+except:
+    _log.critical("Failed to import %s modules", 'oracledb', exc_info=True)
 
-_log_password = "".ljust(random.randint(8,17), '*')
-"""general password for logging"""
 
 class GxTables:
     """
@@ -169,6 +175,12 @@ SELECT INVID FROM {self.Tbl.LOC_PRBREG} {where_clause}
         dbSQL = f"""SELECT DISTINCT LOCTYPE FROM {self.Tbl.LOC_LOCREG} {where_clause}"""
         return dbSQL
 
+    def load_LOCTYPECounts(self, prjID=''):
+        # 10/2026: number of objects per object type (shown in brackets in the GeoDinQGIS Explorer)
+        where_clause = "" if not prjID else f" WHERE PRJ_ID = '{prjID}'"
+        dbSQL = f"""SELECT LOCTYPE, COUNT(*) FROM {self.Tbl.LOC_LOCREG} {where_clause} GROUP BY LOCTYPE"""
+        return dbSQL
+
     def load_LOCPRMGR(self, name=''):
         if not name:
             name = self.Tbl.LOCPRMGR
@@ -229,7 +241,7 @@ SELECT
     LOCTABS.GEN_DESC AS GEN_DESC,
     TY.TAB_DESC AS TAB_DESC, TY.TAB_NAME AS TAB_NAME, TY.TAB_TYPE AS TAB_TYPE, TY.TAB_OPT AS TAB_OPT, TY.TAB_TRC AS TAB_TRC, TY.INV_TYPE AS INV_TYPE
 FROM {self.Tbl.SYS_LOCTABS} LOCTABS
-INNER JOIN {Tbl.SYS_LOCTABTY} TY ON LOCTABS.TAB_DESC = TY.TAB_DESC
+INNER JOIN {self.Tbl.SYS_LOCTABTY} TY ON LOCTABS.TAB_DESC = TY.TAB_DESC
         """
         return dbSQL
 
@@ -324,6 +336,14 @@ class GxDbConnection:
         usr=None,               # database login user
         pwd=None                # database login password
     ):
+        # 10/2026: database without a valid provider (validation failed, e.g.
+        #   file not found) -> clear error message instead of an AttributeError
+        if self._CnnPrv is None:
+            raise gqb.GxSQLCnnError(
+                "%s database '%s' cannot be opened:\n%s",
+                self.DriverID, self.DbName,
+                self._CnnPrps.get('error') or "no database provider available"
+            )
         return self._CnnPrv.connect(usr, pwd)
 
     def load_ADCDATA(self):
@@ -455,6 +475,60 @@ class GxDbConnection:
             self.log.critical("Major disaster...", exc_info=True)
         return res
 
+    def load_ExistingINVTYPECounts(self, prjID):
+        """returns the number of measurement points per measurement point type (INV_TYPE)
+
+        Same query and filter as load_ExistingINVTYPES(), but the INVIDs are counted
+        (the list of the existing INV_TYPES are the keys of the result).
+
+        returns:
+            res (dict())        # {INV_TYPE: number of INVIDs}, empty dict on error
+
+        10/2026
+        """
+        self.log.log(gqc._LOG_TRACE, "%s Database '%s'...", self.DriverID, self.DbName)
+        res = {}
+        try:
+            cmdText = self.CmdText.load_ExistingINVTYPES(prjID)
+            self._log_GxSQL(cmdText)
+            rows = self._CnnPrv.load_Data(cmdText)
+            self._log_GxSQL()
+            # INV_TYPE are the characters 11..13 of the INVID (16 characters),
+            # see load_ExistingINVTYPES()
+            res = dict(Counter(
+                row[0][10:13] for row in rows if bool(row[0]) and (len(row[0]) == 16)
+            ))
+            if self.log.level <= logging.DEBUG:
+                self.log.debug(
+                    "INV_TYPES/counts (PrjID '%s'): \n\t%s",
+                    prjID, json.dumps(res, indent=4).replace("\n", "\n\t")
+                )
+        except:
+            self.log.critical("Major disaster...", exc_info=True)
+        return res
+
+    def load_LOCTYPECounts(self, prjID):
+        """returns the number of objects per object type (LOCTYPE)
+
+        returns:
+            res (dict())        # {LOCTYPE: number of objects}, None on error
+
+        10/2026
+        """
+        self.log.log(gqc._LOG_TRACE, "%s Database '%s'...", self.DriverID, self.DbName)
+        res = None
+        try:
+            cmdText = self.CmdText.load_LOCTYPECounts(prjID)
+            self._log_GxSQL(cmdText)
+            rows = self._CnnPrv.load_Data(cmdText)
+            self._log_GxSQL()
+            res = {row[0]: int(row[1] or 0) for row in rows}
+        except:
+            # counts are only additional information -> no 'Major disaster'
+            self.log.error("Number of objects per object type not loaded", exc_info=True)
+            res = None
+        return res
+
     def load_ExistingLOCTYPES(self, prjID):
         """loads GeODin table INVTYPES
 
@@ -479,6 +553,24 @@ class GxDbConnection:
             #       dann Transformation in die Provider Methode verschieben,
             #       aber Achtung, Trasnformation in load_Data() nur wenn len(row) == 1
             res = [row[0] for row in res]
+        except:
+            self.log.critical("Major disaster...", exc_info=True)
+        return res
+
+    def load_LOCTABTY(self):
+        """loads the tables of the object types incl. measurement point type (10/2026)
+
+        returns:
+            res (list())        # list of tuples
+                                # (GEN_DESC, TAB_DESC, TAB_NAME, TAB_TYPE, TAB_OPT, TAB_TRC, INV_TYPE)
+        """
+        self.log.log(gqc._LOG_TRACE, "%s Database '%s'...", self.DriverID, self.DbName)
+        res = []
+        try:
+            cmdText = self.CmdText.load_LOCTABTY()
+            self._log_GxSQL(cmdText)
+            res = self._CnnPrv.load_Data(cmdText)
+            self._log_GxSQL()
         except:
             self.log.critical("Major disaster...", exc_info=True)
         return res
@@ -636,7 +728,7 @@ class GxDbConnection:
         try:
             # Paramter aus GeODin Configuration übernehmen...
             prps['connectionstring'] = settings['ConnectionString']
-            prps['schema'] = settings['Schema']
+            prps['schema'] = settings.get('Schema', '')
             # GeODin ConnectionString analysieren/splitten....
             pattern = re.compile(r'''
                 ([\w]+)     # group 1/key - Zeichen von a-z, A-Z oder 0-9 oder Unterstrich
@@ -645,8 +737,20 @@ class GxDbConnection:
             ''', re.IGNORECASE | re.VERBOSE)
             for match in re.finditer(pattern, prps['connectionstring']):
                 prps[match.group(1).lower()] = match.group(2)
-            prps['driverid'] = prps['driverid'].upper()
+            # 10/2026: an invalid connection string (e.g. without DriverID) must not abort
+            #   the GeoDin connection -> only this database is marked as invalid
+            prps['driverid'] = prps.get('driverid', '').upper()
             self.log.debug(json.dumps(prps, indent=4).replace('\n','\n\t'))
+            if not prps['driverid']:
+                prps['error'] = gqb.res.translate(
+                    self._context,
+                    "Invalid connection string (DriverID missing)"
+                )
+                self.log.warning(
+                    "Database '%s': invalid connection string (DriverID missing)",
+                    settings.get('DisplayName', '')
+                )
+                return prps
             # Parameter für Plugin Connection validieren...
             # - Default ErrorMessage setzen...
             #   Default: Datenbank vom Typ (bzw. mit FireDAC-DirverID) wird nicht unterstützt
@@ -776,6 +880,34 @@ class GxDbConnection:
                 self._CnnPrv = GxDbProvider4PG(self)
                 self._CnnPrv.validate()
             # erfolgreich -> Fehler(-Meldung) zurücksetzen
+            error = ""
+        except gqb.GQgisException as exc:
+            self.log.error(exc.msg())
+        except:
+            self.log.error("Failed to validate %s connection", prps['driverid'], exc_info=True)
+        finally:
+            prps['error'] = error
+        return
+
+    def _validateCnnPrps4ORA(
+        self,
+        prps                    # Connection properties
+    ):
+        """validates connection properties for Oracle"""
+        # seealso:
+        #   https://docwiki.embarcadero.com/RADStudio/Sydney/en/Connect_to_Oracle_Server_(FireDAC)
+        self.log.log(gqc._LOG_TRACE, "")
+        try:
+            error = self.trans("Failed to validate %s connection", prps['driverid'])
+            prps['info'] = prps.get('database', "")
+            if 'GxDbProvider4ORA' not in globals():
+                error = self.trans("Python module '%s' not installed", 'oracledb')
+                raise gqb.GxSQLError("%s database provider not found", prps['driverid'])
+            if not prps['info']:
+                error = self.trans("Database/File not defined")
+                raise gqb.GxSQLError("%s database not defined", prps['driverid'])
+            self._CnnPrv = GxDbProvider4ORA(self)
+            self._CnnPrv.validate()
             error = ""
         except gqb.GQgisException as exc:
             self.log.error(exc.msg())

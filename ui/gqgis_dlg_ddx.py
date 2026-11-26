@@ -10,6 +10,7 @@ CONTEXT_RES = "GQgis_Dlg_DDX"
 CONTEXT_HLP = "GQgis_DDX"
 """context for resource translation of the help pages (type str)"""
 import logging
+import os
 from pathlib import Path
 
 from qgis.PyQt import (
@@ -31,6 +32,38 @@ from GeODinQGIS.ui.gqgis_bas import (
 )
 from GeODinQGIS.ui.ui_gqgis_dlg_ddx import Ui_GQgis_Dlg_DDX
 from GeODinQGIS.dm.ddx import GxDDX
+from GeODinQGIS.gx.comreg import GxComReg
+import GeODinQGIS.ui.gqgis_comreg as comreg
+
+
+# 10/2026: recently used DDX files (QGIS user settings) ------------------------------------
+_KEY_RECENT_DDX = "GeODinQGIS/recentDDXFiles"
+_MAX_RECENT_DDX = 10
+
+
+def recentDDXFiles():
+    """recently used DDX files (list(str)), most recent first"""
+    try:
+        import qgis.core
+        val = qgis.core.QgsSettings().value(_KEY_RECENT_DDX, [])
+    except Exception:
+        return []
+    if isinstance(val, str):
+        val = [val] if val else []
+    return [str(v) for v in (val or []) if v]
+
+
+def addRecentDDXFile(path):
+    """puts the DDX file at the top of the recently used DDX files"""
+    try:
+        import qgis.core
+        path = os.path.abspath(path)
+        files = [f for f in recentDDXFiles()
+                 if os.path.normcase(os.path.abspath(f)) != os.path.normcase(path)]
+        files.insert(0, path)
+        qgis.core.QgsSettings().setValue(_KEY_RECENT_DDX, files[:_MAX_RECENT_DDX])
+    except Exception:
+        logging.getLogger(f"{gqc._LOG_PARENTS}GQgis_Dlg_DDX").debug("", exc_info=True)
 
 class GQgis_Act_DDX(QtWidgets.QAction, GQgis_Bas_Widget):
     """PyQt Action to open PyQt DDX Dialog
@@ -57,8 +90,8 @@ class GQgis_Act_DDX(QtWidgets.QAction, GQgis_Bas_Widget):
 
     def translateUi(self):
         self.log.debug("translate in context '%s'", self._context)
-        self.setText(self.trans("GeODinQGIS DDX file"))
-        self.setToolTip(self.trans("GeODinQGIS DDX file"))
+        self.setText(self.trans("GeoDinQGIS DDX file"))
+        self.setToolTip(self.trans("GeoDinQGIS DDX file"))
 
     def updateUi(
         self,
@@ -72,7 +105,10 @@ class GQgis_Act_DDX(QtWidgets.QAction, GQgis_Bas_Widget):
         03.05.2021 j.ebert
         """
         self.log.log(gqc._LOG_TRACE,"TRACE")
-        enabled = app.isAvailable()
+        # 10/2026: the DataDictionary dialog is always available, also if the GeoDin COM server
+        #   is not registered (app.isAvailable() is False), because the GeoDin COM server
+        #   can be registered in this dialog
+        enabled = True
         if (
             isinstance(widget, QtWidgets.QWidget) and
             (widget.isEnabled() != enabled)
@@ -100,21 +136,24 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
     _WARNING = 30
     _ERROR = 40
 
-    def __new__(cls, parent):
-        if not hasattr(cls, 'instance'):
-            cls.instance = super(GQgis_Dlg_DDX, cls).__new__(cls)
-        return cls.instance
+    # 10/2026, QGIS 4: PyQt6/sip crashes (segfault) if __new__ of a Qt class is overridden,
+    #   so the singleton is no longer implemented via __new__
+    #   a new (modal) dialog is created for each call of open()
 
     def __init__(self, parent):
         super().__init__(parent)
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.log.log(gqc._LOG_TRACE,"")
         self._context = CONTEXT_RES
+        # 10/2026: status symbols rendered at 16 px - the SVG icons have different sizes
+        #   (info.svg 36 px, status_*.svg 20 px), QPixmap(alias) used their own size
+        #   (old: self.QPixmap("GenericInfo_16") etc.)
+        statusSize = QtCore.QSize(16, 16)
         self._QPixmap = {
-            self._INFO: self.QPixmap("GenericInfo_16"),
+            self._INFO: self.QIcon("GenericInfo_16").pixmap(statusSize),
 ##            self._INFO: self.QPixmap("GenericNew_16"),
-            self._WARNING: self.QPixmap("GenericWarning_16"),
-            self._ERROR: self.QPixmap("GenericError_16"),
+            self._WARNING: self.QIcon("GenericWarning_16").pixmap(statusSize),
+            self._ERROR: self.QIcon("GenericError_16").pixmap(statusSize),
         }
         # initialize DDX-Dialog properties
         self._DDX = None
@@ -131,6 +170,35 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
         # set up QWidget
         self.ui = Ui_GQgis_Dlg_DDX()
         self.ui.setupUi(self)
+        # 10/2026: button 'Save' next to OK/Cancel (instead of the small icon button next to
+        #   the DDX file); the icon button stays as hidden state holder (pushButton_Save)
+        self._btnSave = self.ui.buttonBox.addButton(
+            "Save", QtWidgets.QDialogButtonBox.ButtonRole.ActionRole
+        )
+        self._btnSave.setEnabled(False)
+        self._btnSave.clicked.connect(self._clicked_BtnSave)
+        self.ui.pushButton_Save.setVisible(False)
+        # 10/2026: only 'Apply' (OK: save if changed, load the DDX, close) and 'Close' (Cancel)
+        #   - the separate 'Save' button is hidden (see accept())
+        self._btnSave.setVisible(False)
+        # 10/2026: DDX file as editable combo box with the recently used DDX files and the
+        #   entries 'Open other DDX file...' / 'Create new DDX file...'
+        #   (replaces the buttons 'Open' next to the field and 'New' top right - both hidden;
+        #   the line edit lineEdit_File is kept as line edit of the combo box)
+        self._cboFile = QtWidgets.QComboBox(self)
+        self._cboFile.setEditable(True)
+        self._cboFile.setInsertPolicy(QtWidgets.QComboBox.InsertPolicy.NoInsert)
+        self._cboFile.setSizeAdjustPolicy(
+            QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self._cboFile.setMinimumContentsLength(30)
+        self.ui.gridLayout_2.replaceWidget(self.ui.lineEdit_File, self._cboFile)
+        self._cboFile.setLineEdit(self.ui.lineEdit_File)
+        self._cboFile.activated.connect(self._activated_CboFile)
+        self.ui.pushButton_File.setVisible(False)
+        self.ui.pushButton_New.setVisible(False)
+        # 10/2026: initial dialog size, see _initDialogSize()
+        self._initDialogSize()
         # initialize ...
         self.validateUi()
         self.connectUi()
@@ -153,26 +221,54 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
         self.ui.pushButton_File.clicked.connect(self._clicked_BtnFile)
         self.ui.pushButton_Data.clicked.connect(self._clicked_BtnData)
         self.ui.pushButton_Conf.clicked.connect(self._clicked_BtnConf)
+        # 10/2026: GeoDin COM server registration
+        self.ui.pushButton_ComReg.clicked.connect(self._clicked_BtnComReg)
         return
 
     def translateUi(self):
         self.log.debug("translate in context '%s'", self._context)
         # translate Ui/QWidget
         try:
-            self.setWindowTitle(self.trans("GeODinQGIS - DataDictionary"))
+            self.setWindowTitle(self.trans("GeoDinQGIS - DataDictionary"))
             self.ui.label_File.setText(
-                self._FileDlgFilter_File % self.trans("GeODinQGIS DDX file")
+                self._FileDlgFilter_File % self.trans("GeoDinQGIS DDX file")
             )
-            self.ui.label_Data.setText(self.trans("GeODinQGIS data folder"))
+            self.ui.label_Data.setText(self.trans("GeoDinQGIS data folder"))
             self.ui.label_Conf.setText(
-                self._FileDlgFilter_Conf % self.trans("GeODin configuration file")
+                self._FileDlgFilter_Conf % self.trans("GeoDin configuration file")
             )
             self.ui.checkBox_SaveRelPaths.setText(self.trans("Save relative paths"))
-            self.ui.pushButton_New.setToolTip(self.trans("New GeODinQGIS DDX file"))
-            self.ui.pushButton_Save.setToolTip(self.trans("Save GeODinQGIS DDX file"))
-            self.ui.pushButton_File.setToolTip(self.trans("Open GeODinQGIS DDX file"))
-            self.ui.pushButton_Data.setToolTip(self.trans("Open GeODinQGIS data folder"))
-            self.ui.pushButton_Conf.setToolTip(self.trans("Open GeODin configuration file"))
+            self.ui.checkBox_AutoLoad.setText(
+                self.trans("Load this configuration automatically when QGIS starts")
+            )
+            self.ui.pushButton_ComReg.setText(self.trans("Register GeoDin COM server..."))
+            self.ui.pushButton_ComReg.setToolTip(
+                self.trans("Registers the GeoDin application of the chosen GeoDin configuration as COM server (administrator rights required)")
+            )
+            self.ui.checkBox_AutoLoad.setToolTip(
+                self.trans("The DDX file is loaded at QGIS start and for QGIS projects without GeoDinQGIS settings")
+            )
+            self.ui.pushButton_New.setToolTip(self.trans("New GeoDinQGIS DDX file"))
+            self.ui.pushButton_Save.setToolTip(self.trans("Save GeoDinQGIS DDX file"))
+            # 10/2026: buttons of the button box (independent of the QGIS/Qt language)
+            self._btnSave.setText(self.trans("Save"))
+            self._btnSave.setToolTip(self.trans("Save GeoDinQGIS DDX file"))
+            # self.ui.buttonBox.button(QtWidgets.QDialogButtonBox.StandardButton.Cancel).setText(
+            #     self.trans("Cancel")
+            # )
+            # 10/2026: 'Apply' (save if changed, load the DDX, close) and 'Close'
+            btnOk = self.ui.buttonBox.button(QtWidgets.QDialogButtonBox.StandardButton.Ok)
+            btnOk.setText(self.trans("Apply"))
+            btnOk.setToolTip(self.trans("Save the DDX file (if changed), load it in GeoDinQGIS and close the dialog"))
+            btnCancel = self.ui.buttonBox.button(QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+            btnCancel.setText(self.trans("Close"))
+            btnCancel.setToolTip(self.trans("Close the dialog without loading the DDX file (unsaved changes are discarded)"))
+            self.ui.pushButton_File.setToolTip(self.trans("Open GeoDinQGIS DDX file"))
+            self.ui.pushButton_Data.setToolTip(self.trans("Open GeoDinQGIS data folder"))
+            self.ui.pushButton_Conf.setToolTip(self.trans("Open GeoDin configuration file"))
+            # 10/2026: combo box with the recently used DDX files
+            self._cboFile.setToolTip(self.trans("Recently used DDX files, open another or create a new DDX file"))
+            self._fillCboFile()
         except:
             self.log.error("", exc_info=True)
         return
@@ -214,14 +310,26 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
             dlg_OK and
             (bool(self._DDX) and self._DDX.isDirty)
         )
+        # 10/2026: button 'Save' in the button box
+        if getattr(self, '_btnSave', None) is not None:
+            self._btnSave.setEnabled(self.ui.pushButton_Save.isEnabled())
+            self._btnSave.setDefault(self.ui.pushButton_Save.isEnabled())
+        # 10/2026: status of the GeoDin COM server registration for the chosen geodin.ini
+        self._update_ComReg(dlg_OK)
+        # 10/2026: option 'auto-load' is only enabled for a valid DDX file
+        self.ui.checkBox_AutoLoad.setEnabled(
+            dlg_OK and bool(self.ui.lineEdit_File.text())
+        )
         # OK-Button aktivieren/deaktivieren...
         #   OK-Button kann nur aktiv sein...
         #   wenn der Dlg okay is, also alle Prms fehlerfrei validiert wurden und
         #   wenn der Save-Button nicht aktiv ist, also das DDX gespeichert/nicht geändert wurde
-        self.ui.buttonBox.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(
-            dlg_OK and
-            (not self.ui.pushButton_Save.isEnabled())
-        )
+        # self.ui.buttonBox.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setEnabled(
+        #     dlg_OK and
+        #     (not self.ui.pushButton_Save.isEnabled())
+        # )
+        # 10/2026: 'Apply' saves a changed DDX itself (accept()), so it only depends on dlg_OK
+        self.ui.buttonBox.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setEnabled(dlg_OK)
         return
 
     def _validate_Conf(self):
@@ -234,24 +342,39 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
             self.__oldConf = "?"
         else:
             # Wenn Prm File keinen Fehler ToolTip hat...
+            # 10/2026: empty field -> geodin.ini of the GeoDin application started last
+            #   (registry HKCU\Software\GeODin-System\System\RootDir); the user still has to save
+            lastIni = ""
+            if not self.ui.lineEdit_Conf.text():
+                try:
+                    from GeODinQGIS.gx.system import GxReg
+                    lastIni = GxReg.lastGeoDinIni()
+                except Exception:
+                    self.log.debug("", exc_info=True)
+                if lastIni:
+                    self.log.info("geodin.ini of the GeoDin application started last: %s", lastIni)
+                    self.ui.lineEdit_Conf.setText(lastIni)
             if not self.ui.lineEdit_Conf.text():
                 # Wenn kein GeODin-File gesetzt ist...
-                prm_ToolTip = (self._ERROR, "GeODin file is required")
+                prm_ToolTip = (self._ERROR, "GeoDin file is required")
             else:
                 ddx_Conf = self.ui.lineEdit_Conf.text()
                 try:
                     ddx_Path = Path(ddx_Conf)
                     ddx_Path.resolve()
                     if ddx_Path.name.lower() != 'geodin.ini':
-                        prm_ToolTip = (self._ERROR, self.trans("No GeODin file (geodin.ini)!"))
+                        prm_ToolTip = (self._ERROR, self.trans("No GeoDin file (geodin.ini)!"))
                     elif not ddx_Path.is_absolute():
-                        prm_ToolTip = (self._ERROR, self.trans("No absolute GeODin file path!"))
+                        prm_ToolTip = (self._ERROR, self.trans("No absolute GeoDin file path!"))
                     elif not Path(self.ui.lineEdit_Conf.text()).is_file():
-                        prm_ToolTip = (self._ERROR, self.trans("No such GeODin file"))
+                        prm_ToolTip = (self._ERROR, self.trans("No such GeoDin file"))
+                    elif lastIni:
+                        prm_ToolTip = (self._INFO, self.trans(
+                            "geodin.ini of the GeoDin application started last (please check and save)"))
                     self.ui.lineEdit_Conf.setText(str(ddx_Path))
                 except OSError:
-                    self.log.error("OS error with GeODin file '%s'", ddx_Conf, exc_info=True)
-                    prm_ToolTip = (self._ERROR, self.trans("OS error with GeODin file!"))
+                    self.log.error("OS error with GeoDin file '%s'", ddx_Conf, exc_info=True)
+                    prm_ToolTip = (self._ERROR, self.trans("OS error with GeoDin file!"))
                 except:
                     self.log.error(
                         "Unkown error with data folder '%s'", ddx_Conf,
@@ -373,7 +496,7 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
                     ddx_Path = Path(self.ui.lineEdit_File.text())
                     ddx_Path.resolve()
                     if not ddx_Path.is_absolute():
-                        raise gqb.GxFileError("No absolute file path '%s'", ddxFile)
+                        raise gqb.GxFileError("No absolute file path '%s'", ddx_Path)
                     ddx_Path = ddx_Path.with_suffix(GxDDX.suffix())
                     self.ui.lineEdit_File.setText(str(ddx_Path))
                     if ddx_Path.exists():
@@ -425,6 +548,104 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
         # wenn der Prm File keinen Fehler hat
         return (not self.__hasFileError)
 
+    def _update_ComReg(self, dlg_OK=True):
+        """shows the status of the GeoDin COM server registration for the chosen geodin.ini
+
+        10/2026
+        """
+        conf = self.ui.lineEdit_Conf.text()
+        show = bool(dlg_OK) and bool(conf) and not self.__hasConfError
+        result = None
+        if show:
+            try:
+                result = GxComReg.check(conf, with_running=False)
+            except Exception:
+                self.log.error("GeoDin COM server check failed", exc_info=True)
+        if result is None:
+            self.ui.label_Com.setText("")
+            self.ui.label_ComImg.setVisible(False)
+            self.ui.pushButton_ComReg.setVisible(False)
+            self._fitDialogHeight()
+            return
+        level, text = comreg.statusText(result)
+        self.ui.label_Com.setText(text)
+        self.ui.label_Com.setToolTip(text)
+        pixmap = {
+            'info': self._QPixmap[self._INFO],
+            'warning': self._QPixmap[self._WARNING],
+            'error': self._QPixmap[self._ERROR],
+        }.get(level)
+        if pixmap is not None:
+            self.ui.label_ComImg.setPixmap(pixmap)
+        self.ui.label_ComImg.setVisible(pixmap is not None)
+        self.ui.pushButton_ComReg.setVisible(
+            result['state'] in (GxComReg.NOT_REGISTERED, GxComReg.WRONG_EXE, GxComReg.BOTH_BITS) and
+            result['supported']
+        )
+        self._fitDialogHeight()
+        return
+
+    # 10/2026: dialog size
+    #   ui_gqgis_dlg_ddx.py fixes the dialog to 422 x 283 px (minimum/maximum height 283).
+    #   With the rows for auto-load and the GeoDin COM server state the content no longer fits
+    #   (squeezed rows, cut COM messages). The width is now larger and the height follows the
+    #   content (incl. word-wrapped COM messages); the dialog can still only be resized horizontally.
+    #   Rollback: remove the call of _initDialogSize() in __init__.
+    _DLG_MIN_WIDTH = 560
+    _DLG_INIT_WIDTH = 620
+
+    def _initDialogSize(self):
+        """overrides the fixed size of ui_gqgis_dlg_ddx.py (see comment above)
+
+        10/2026
+        """
+        self.setMinimumSize(QtCore.QSize(self._DLG_MIN_WIDTH, 0))
+        self.setMaximumSize(QtCore.QSize(16777215, 16777215))
+        self.resize(self._DLG_INIT_WIDTH, self.height())
+        self._fitDialogHeight()
+
+    def _fitDialogHeight(self):
+        """sets the (fixed) dialog height to the height the content needs at the current width
+
+        10/2026
+        """
+        lay = self.layout()
+        if lay is None:
+            return
+        lay.invalidate()
+        lay.activate()
+        h = lay.heightForWidth(self.width()) if lay.hasHeightForWidth() else -1
+        if h <= 0:
+            h = lay.sizeHint().height()
+        h = max(h, lay.minimumSize().height())
+        if h != self.minimumHeight() or h != self.maximumHeight():
+            self.setFixedHeight(h)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._fitDialogHeight()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # word wrap of the COM message depends on the width
+        if event.size().width() != event.oldSize().width():
+            QtCore.QTimer.singleShot(0, self._fitDialogHeight)
+
+    def _clicked_BtnComReg(self):
+        """registers the GeoDin application of the chosen geodin.ini as COM server
+
+        10/2026
+        """
+        self.log.log(gqc._LOG_TRACE,"")
+        comreg.ensureComRegistration(self, self.ui.lineEdit_Conf.text(), force=True)
+        self._update_ComReg()
+        # toolbar buttons (e.g. Connect) depend on the registration -> update them
+        try:
+            app.updateUI()
+        except Exception:
+            self.log.debug("", exc_info=True)
+        return
+
     def _changed_checkBox(self):
         self.log.log(gqc._LOG_TRACE,"")
         self.validateUi()
@@ -436,12 +657,12 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
         """
         self.log.log(gqc._LOG_TRACE,"")
         dlg = QtWidgets.QFileDialog(self)
-        dlg.setWindowTitle(self.trans("Open GeODin configuration file"))
+        dlg.setWindowTitle(self.trans("Open GeoDin configuration file"))
         # 04/2023 j.ebert, Anmerkung
         #   Translation hier genau so, damit der FileDialog-Filter immer richtig gesetzt wird.
-        dlg.setNameFilter(self._FileDlgFilter_Conf % self.trans("GeODin file"))
-        dlg.setFileMode(QtWidgets.QFileDialog.ExistingFile)
-        if dlg.exec_():
+        dlg.setNameFilter(self._FileDlgFilter_Conf % self.trans("GeoDin file"))
+        dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
+        if dlg.exec():
             selFiles = dlg.selectedFiles()
             self.log.debug(selFiles)
             self.ui.lineEdit_Conf.setText(selFiles[0])
@@ -454,9 +675,9 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
         """
         self.log.log(gqc._LOG_TRACE,"")
         dlg = QtWidgets.QFileDialog(self)
-        dlg.setWindowTitle(self.trans("Open GeODinQGIS data folder"))
-        dlg.setFileMode(QtWidgets.QFileDialog.Directory)
-        if dlg.exec_():
+        dlg.setWindowTitle(self.trans("Open GeoDinQGIS data folder"))
+        dlg.setFileMode(QtWidgets.QFileDialog.FileMode.Directory)
+        if dlg.exec():
             selFiles = dlg.selectedFiles()
             self.log.debug(selFiles)
             self.ui.lineEdit_Data.setText(selFiles[0])
@@ -471,19 +692,19 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
         # check if the keyboard modifier 'Ctrl' is pressed
         # https://stackoverflow.com/questions/8772595/how-can-i-check-if-a-keyboard-modifier-is-pressed-shift-ctrl-or-alt
         modifiers = QtWidgets.QApplication.keyboardModifiers()
-        if modifiers == QtCore.Qt.ControlModifier:
+        if modifiers == QtCore.Qt.KeyboardModifier.ControlModifier:
             # Bei 'Control+Click'...
             # Prm File zurücksetzen und keinen FileDialog öffnen
             self.ui.lineEdit_File.setText("")
             self.validateUi()
         else:
             dlg = QtWidgets.QFileDialog(self)
-            dlg.setWindowTitle(self.trans("Open GeODinQGIS DDX file"))
+            dlg.setWindowTitle(self.trans("Open GeoDinQGIS DDX file"))
             # 04/2023 j.ebert, Anmerkung
             #   Translation hier genau so, damit der FileDialog-Filter immer richtig gesetzt wird.
             dlg.setNameFilter(self._FileDlgFilter_File % self.trans("DDX file"))
-            dlg.setFileMode(QtWidgets.QFileDialog.ExistingFile)
-            if dlg.exec_():
+            dlg.setFileMode(QtWidgets.QFileDialog.FileMode.ExistingFile)
+            if dlg.exec():
                 selFiles = dlg.selectedFiles()
                 self.log.debug(selFiles)
                 self.ui.lineEdit_File.setText(selFiles[0])
@@ -496,18 +717,104 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
         """
         self.log.log(gqc._LOG_TRACE,"")
         dlg = QtWidgets.QFileDialog(self)
-        dlg.setWindowTitle(self.trans("New GeODinQGIS DDX file"))
+        dlg.setWindowTitle(self.trans("New GeoDinQGIS DDX file"))
         # 04/2023 j.ebert, Anmerkung
         #   Translation hier genau so, damit der FileDialog-Filter immer richtig gesetzt wird.
         dlg.setNameFilter(self._FileDlgFilter_File % self.trans("DDX file"))
-        dlg.setAcceptMode(QtWidgets.QFileDialog.AcceptSave)
-        if dlg.exec_():
+        dlg.setAcceptMode(QtWidgets.QFileDialog.AcceptMode.AcceptSave)
+        if dlg.exec():
             selFiles = dlg.selectedFiles()
             self.log.debug(selFiles)
             self.ui.lineEdit_File.setText(selFiles[0])
             # DDX-File-Management nach "New GeODinQGIS DDX file" (!!!)
             self.validateUi()
         return
+
+    _ITEM_OPEN = "__open__"
+    _ITEM_NEW = "__new__"
+
+    def _fillCboFile(self):
+        """fills the combo box with the recently used DDX files (10/2026)"""
+        cbo = getattr(self, '_cboFile', None)
+        if cbo is None:
+            return
+        text = self.ui.lineEdit_File.text()
+        cbo.blockSignals(True)
+        try:
+            cbo.clear()
+            for path in recentDDXFiles():
+                cbo.addItem(path, path)
+                idx = cbo.count() - 1
+                if not os.path.isfile(path):
+                    # missing file: shown disabled
+                    item = cbo.model().item(idx)
+                    if item is not None:
+                        item.setEnabled(False)
+                    cbo.setItemData(idx, self.trans("File not found"), QtCore.Qt.ItemDataRole.ToolTipRole)
+            if cbo.count():
+                cbo.insertSeparator(cbo.count())
+            cbo.addItem(self.trans("Open other DDX file..."), self._ITEM_OPEN)
+            cbo.addItem(self.trans("Create new DDX file..."), self._ITEM_NEW)
+            cbo.setCurrentIndex(-1)
+            self.ui.lineEdit_File.setText(text)
+        finally:
+            cbo.blockSignals(False)
+        return
+
+    def _activated_CboFile(self, index):
+        """entry of the combo box chosen: recent DDX file, 'Open...' or 'New...' (10/2026)"""
+        data = self._cboFile.itemData(index)
+        oldText = self.__oldFile if self.__oldFile != "?" else ""
+        if data == self._ITEM_OPEN:
+            self.ui.lineEdit_File.setText(oldText)
+            self._clicked_BtnFile()
+        elif data == self._ITEM_NEW:
+            self.ui.lineEdit_File.setText(oldText)
+            self._clicked_BtnNew()
+        elif data:
+            self.ui.lineEdit_File.setText(data)
+            self.validateUi()
+        return
+
+    def accept(self):
+        """'Apply': saves a changed DDX file, then the dialog is closed and the DDX is loaded
+
+        10/2026 (before: OK only enabled after saving with the 'Save' button)
+        """
+        if self.ui.pushButton_Save.isEnabled():
+            try:
+                self._clicked_BtnSave()
+            except Exception:
+                self.log.error("DDX file could not be saved", exc_info=True)
+                MsgBox.error(self, self.trans("Apply"), self.trans("The DDX file could not be saved."))
+                return
+        super().accept()
+
+    def reject(self):
+        """'Close' (also Esc / window close): asks if the DDX file was changed but not saved
+
+        10/2026
+        """
+        if self.ui.pushButton_Save.isEnabled():
+            msg = QtWidgets.QMessageBox(self)
+            msg.setIcon(QtWidgets.QMessageBox.Icon.Question)
+            msg.setWindowTitle(self.windowTitle())
+            msg.setText(self.trans("The changes of the DDX file have not been saved."))
+            msg.setInformativeText(self.trans("Do you want to apply the changes before closing?"))
+            btnApply = msg.addButton(self.trans("Apply"), QtWidgets.QMessageBox.ButtonRole.AcceptRole)
+            btnDiscard = msg.addButton(self.trans("Discard"), QtWidgets.QMessageBox.ButtonRole.DestructiveRole)
+            btnCancel = msg.addButton(self.trans("Cancel"), QtWidgets.QMessageBox.ButtonRole.RejectRole)
+            msg.setDefaultButton(btnApply)
+            msg.setEscapeButton(btnCancel)
+            msg.exec()
+            clicked = msg.clickedButton()
+            if clicked == btnApply:
+                self.accept()
+                return
+            if clicked != btnDiscard:
+                return          # back to the dialog
+            self.log.info("DDX changes discarded")
+        super().reject()
 
     def _clicked_BtnSave(self):
         """
@@ -575,11 +882,40 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
             except gqb.GxFileError as exc:
                 MsgBox.error(parent, 'DataDictionary', exc.msg())
         # DDX-Dialog öffnen/ausführen...
+        # 10/2026: the current DDX file is part of the recently used DDX files
+        if app.DDXFile and os.path.isfile(app.DDXFile):
+            addRecentDDXFile(app.DDXFile)
         dlg = cls(parent)
-        dlg.ui.lineEdit_File.setText(app.DDXFile)
-        dlg.validateUi()
-        if dlg.exec_():
-            app.updateDDXFile(dlg.ui.lineEdit_File.text())
+        try:
+            dlg._fillCboFile()
+            dlg.ui.lineEdit_File.setText(app.DDXFile)
+            # 10/2026: check option 'auto-load' if the current DDX file is the one
+            #   saved for auto-load
+            autoLoadFile = app.autoLoadDDXFile()
+            wasAutoLoad = (
+                bool(autoLoadFile) and bool(app.DDXFile) and
+                (os.path.normcase(os.path.abspath(autoLoadFile)) ==
+                 os.path.normcase(os.path.abspath(app.DDXFile)))
+            )
+            dlg.ui.checkBox_AutoLoad.setChecked(wasAutoLoad)
+            dlg.validateUi()
+            if dlg.exec():
+                ddxFile = dlg.ui.lineEdit_File.text()
+                # 10/2026: save option 'auto-load'
+                if dlg.ui.checkBox_AutoLoad.isChecked() and ddxFile:
+                    app.setAutoLoadDDXFile(os.path.abspath(ddxFile), True)
+                elif wasAutoLoad:
+                    # option was unchecked for the saved configuration -> disable auto-load
+                    app.setAutoLoadDDXFile("", False)
+                app.updateDDXFile(ddxFile)
+                # 10/2026: list of the recently used DDX files
+                if ddxFile:
+                    addRecentDDXFile(ddxFile)
+        finally:
+            # unregister and delete the dialog
+            if dlg in res.Ui:
+                res.Ui.remove(dlg)
+            dlg.deleteLater()
         return
 
 

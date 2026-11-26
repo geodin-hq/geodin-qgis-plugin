@@ -230,7 +230,7 @@ class GoProject(GoBaseClass):
         #   Derzeit wird diese Methode ausschließlich zum laden aus dem DDX genutzt.
         #   - Attr _error setzen und beim Überladen mit GoProject aus der GeODin-DB überschreiben
         #     (Attr isDisabled ist abhängig vom Attr _isError)
-        obj._error = "No longer in GeODin database"
+        obj._error = "No longer in GeoDin database"
         obj.log.log(gqc._LOG_TRACE, "%s '%s' (PrjID %s)...", cls.__name__, obj.Name, obj.PrjID)
         return obj
 

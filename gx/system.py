@@ -78,6 +78,35 @@ class GxReg:
         return regVal
 
     @classmethod
+    def lastGeoDinIni(cls):
+        r"""returns the geodin.ini of the GeoDin application started last ('' if not found)
+
+        HKEY_CURRENT_USER\Software\GeODin-System\System, value RootDir
+        (folder of the GeoDin application; the geodin.ini is in this folder,
+         the geodin.exe in its subfolder Bin)
+
+        10/2026
+        """
+        rootDir = cls.query('System', 'RootDir', "")
+        if not rootDir:
+            return ""
+        try:
+            root = Path(str(rootDir).strip().strip('"'))
+            folders = [root]
+            if root.name.lower() == 'bin':
+                # in case RootDir points to the Bin folder
+                folders.append(root.parent)
+            for folder in folders:
+                for name in ('geodin.ini', 'GEODIN.INI'):
+                    ini = folder / name
+                    if ini.is_file():
+                        return str(ini)
+        except Exception:
+            cls.log.debug("RootDir '%s'", rootDir, exc_info=True)
+        cls.log.debug("No geodin.ini in RootDir '%s'", rootDir)
+        return ""
+
+    @classmethod
     def query_Database(
         cls,
         name                    # GeODin database name
@@ -171,8 +200,8 @@ class GxReg:
             #   dann wird der Text nur mit einer Warnung zurückgegeben
             version = ".".join([str(item) for item in cls.get_FileVersion(cls._prog_path_key64)])
             rows = [
-                'GeODin %s' % version,
-                'Warning: GeODin 64 bit and also GeODin 32 bit are registered',
+                'GeoDin %s' % version,
+                'Warning: GeoDin 64 bit and also GeoDin 32 bit are registered',
                 '         %s' % cls._prog_path_key64,
                 '         %s' % cls._prog_path_key32,
                 ]
@@ -182,8 +211,8 @@ class GxReg:
         ):
             # Error: GeODin 64 Bit and also GeODin 32 Bit registered
             rows = [
-                'GeODin',
-                'Error: GeODin 64 bit and also GeODin 32 bit are registered',
+                'GeoDin',
+                'Error: GeoDin 64 bit and also GeoDin 32 bit are registered',
                 '       %s' % cls._prog_path_key64,
                 '       %s' % cls._prog_path_key32,
                 ]
@@ -199,15 +228,15 @@ class GxReg:
             #   Dieser Text 'About...' wird druchgereicht und muss eine klare Aussage haben:
             #   32 Bit Registrierung ist ein Error (unabhängig welche geodin.exe)!!!
             rows = [
-                'GeODin',
-                'Error: GeODin 32 bit is registered but not supported',
+                'GeoDin',
+                'Error: GeoDin 32 bit is registered but not supported',
                 '       %s' % cls._prog_path_key32,
                 ]
         else:
             # Warning: neither GeODin 64 bit nor GeODin 32 bit registered
             rows = [
-                'GeODin',
-                'Error: GeODin is not installed/registered'
+                'GeoDin',
+                'Error: GeoDin is not installed/registered'
                 ]
         txt = "\n    ".join(rows) + "\n"
         return txt
@@ -231,8 +260,8 @@ class GxReg:
         """
         if not os.path.exists(fname):
             rows = [
-                'GeODin',
-                'Error: registered GeODin not found',
+                'GeoDin',
+                'Error: registered GeoDin not found',
                 '       %s' % fname]
         else:
             desc = [str(item) for item in args]
@@ -243,7 +272,7 @@ class GxReg:
             text = " - ".join(desc)
             version = ".".join([str(item) for item in cls.get_FileVersion(fname)])
             rows = [
-                f"GeODin {version} ({text})",
+                f"GeoDin {version} ({text})",
                 fname,
                 ]
         return rows
@@ -254,7 +283,7 @@ class GxReg:
 
         07.03.2023 j.ebert
         """
-        return "GeODin (64 Bit)"
+        return "GeoDin (64 Bit)"
 
     @classmethod
     def prog_clsid(cls):
@@ -420,11 +449,11 @@ class GxReg:
                 f"CLSID\\{cls._prog_clsid}\\LocalServer32",
                 default="",
                 access=winreg.KEY_WOW64_32KEY)
-            cls.log.debug(f"""GeODinApllication porperties from Windows registry
-        GeODin ProgID   {cls.prog_id()}
-        GeODin ClsID    {cls._prog_clsid}
-        GeODin 64 Bit   {cls._default(cls._prog_path_key64, "not registered")}
-        GeODin 32 Bit   {cls._default(cls._prog_path_key32, "not registered")}
+            cls.log.debug(f"""GeoDinApllication porperties from Windows registry
+        GeoDin ProgID   {cls.prog_id()}
+        GeoDin ClsID    {cls._prog_clsid}
+        GeoDin 64 Bit   {cls._default(cls._prog_path_key64, "not registered")}
+        GeoDin 32 Bit   {cls._default(cls._prog_path_key32, "not registered")}
         """)
             # Anmerkung, nur GeODin 64 Bit wird unterstützt.
             #   _prog_path initialisieren (_prog_path_key64 oder auch Leerstring!)
@@ -496,7 +525,7 @@ class GxSys:
         prps = {}
         try:
             prps['connectionstring'] = settings['ConnectionString']
-            prps['schema'] = settings['Schema']
+            prps['schema'] = settings.get('Schema', '')
 ##            pattern = re.compile(r'(([\w]+)=([^;]+))*(;|$)', re.IGNORECASE)
 ##            pattern = re.compile(r'(([\w]+)=([^;]+))', re.IGNORECASE)
 ##            for match in re.finditer(pattern, prps['connectionstring']):
@@ -508,7 +537,7 @@ class GxSys:
             ''', re.IGNORECASE | re.VERBOSE)
             for match in re.finditer(pattern, prps['connectionstring']):
                 prps[match.group(1).lower()] = match.group(2)
-            prps['driverid'] = prps['driverid'].upper()
+            prps['driverid'] = prps.get('driverid', '').upper()
             cls.log.debug(json.dumps(prps, indent=4).replace('\n','\n\t'))
         except:
             cls.log.error(
@@ -546,7 +575,7 @@ class GxSys:
         confPath = dataPath / 'Config'
         if confPath.exists() and confPath.is_dir():
             # Verzeichnis <ProgramData>\Config existiert...
-            cls.log.debug("GeODin config folder...\n\t%s", str(confPath))
+            cls.log.debug("GeoDin config folder...\n\t%s", str(confPath))
             # Liste der SystemDatabase Namen laden/einlesen...
             #   SysDB configuration files     <ProgramData>\Config\*.con
             #   SysDB 1                       <ProgramData>\Config\<SysDB 1 Displayname>.con
@@ -557,7 +586,7 @@ class GxSys:
             ]
         else:
             # Verzeichnis <ProgramData>\Config existiert nicht?!
-            cls.log.error("GeODin config folder not found\n\t%s", str(confPath))
+            cls.log.error("GeoDin config folder not found\n\t%s", str(confPath))
             # Liste der SystemDatabase Namen ist eine leere Liste
             sysDBNames = []
         # ProgramData und Liste der SystemDatabase zurückgeben

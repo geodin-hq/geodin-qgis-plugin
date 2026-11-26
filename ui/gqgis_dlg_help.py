@@ -51,7 +51,7 @@ class GQgis_Dlg_Help(QtWidgets.QDialog, GQgis_Bas_Widget):
         self.log.debug("translate in context '%s'", self._context)
         # translate Ui/QWidget
         try:
-            self.setWindowTitle(self.trans("GeODinQGIS - Help"))
+            self.setWindowTitle(self.trans("GeoDinQGIS - Help"))
         except:
 ##            self.log.error(self.ui.__dir__())
             self.log.error("", exc_info=True)

@@ -10,9 +10,9 @@
 #-------------------------------------------------------------------------------
 __company__ = 'Fugro'
 __product__ = 'GeODinQGIS'
-__version__ = '3.0.2300.99'
+__version__ = '4.0.0.2644'   # fallback, the version is read from metadata.txt (before: '3.0.2300.99')
 __author__ = 'j.ebert'
-__licens__ = '<your licence>'
+__license__ = 'GPL-2.0-or-later'
 __author_email__ = 'j.ebert@fugro.com'
 __maintainer_email__ = 'support@geodin.com'
 __url__ = 'www.geodin.com'

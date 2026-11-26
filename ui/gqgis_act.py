@@ -67,8 +67,8 @@ class GQgis_Act_MsgBox(QtWidgets.QAction, GQgis_Bas_Widget):
         res = MsgBox.information(
             self._parent,
             None,
-            "Check GeODin application!",
-            "Bring the GeODin window to the front\nand check the license selection!",
+            "Check GeoDin application!",
+            "Bring the GeoDin window to the front\nand check the license selection!",
             MsgBox.Retry|MsgBox.Cancel
         )
         self.log.info("MsgBox result %s (%s, %s)", str(res), type(res), repr(res))
@@ -167,11 +167,11 @@ class GQgis_Act_Connect(QtWidgets.QAction, GQgis_Bas_Widget):
 
     def translateUi(self):
         self.log.debug("translate in context '%s'", self._context)
-        self.setText(self.trans("GeODin"))
+        self.setText(self.trans("GeoDin"))
         if self.isChecked():
-            self.setToolTip(self.trans("Close GeODin"))
+            self.setToolTip(self.trans("Close GeoDin"))
         else:
-            self.setToolTip(self.trans("Open GeODin"))
+            self.setToolTip(self.trans("Open GeoDin"))
 
     def updateUi(
         self,
@@ -247,8 +247,8 @@ class GQgis_Act_Connect(QtWidgets.QAction, GQgis_Bas_Widget):
                         dlgRes = MsgBox.information(
                             self._parent,
                             None,
-                            "Check GeODin application!",
-                            "Bring the GeODin window to the front\nand check the license selection!",
+                            "Check GeoDin application!",
+                            "Bring the GeoDin window to the front\nand check the license selection!",
                             MsgBox.Retry|MsgBox.Cancel
                         )
                         if (dlgRes != MsgBox.Retry):

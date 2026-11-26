@@ -25,6 +25,44 @@ try:
 except:
     pass
 
+AUTO_LANGUAGE = 'auto'
+"""10/2026: language setting 'auto' - use the language of the QGIS user interface"""
+FALLBACK_LANGUAGE = 'en'
+"""10/2026: language code if the (QGIS) language is not supported"""
+
+
+def qgisUiLanguage():
+    """returns the language code of the QGIS user interface (e.g. 'de'), '' if unknown
+
+    Order:
+      1. QgsApplication.locale() - the language QGIS actually uses
+      2. QGIS settings 'locale/overrideFlag' / 'locale/userLocale'
+         (QGIS » Settings » Options » General » Override system locale), otherwise QLocale.system()
+      3. '' (outside QGIS) - then DEFAULT_LANGUAGE (Windows UI language) is used
+
+    10/2026
+    """
+    code = ''
+    try:
+        from qgis.core import QgsApplication
+        code = QgsApplication.locale() or ''
+    except Exception:
+        code = ''
+    if not code:
+        try:
+            from qgis.core import QgsSettings
+            from qgis.PyQt.QtCore import QLocale
+            settings = QgsSettings()
+            if settings.value('locale/overrideFlag', False, type=bool):
+                code = settings.value('locale/userLocale', '', type=str)
+            if not code:
+                code = QLocale.system().name()
+        except Exception:
+            code = ''
+    # 'de_DE', 'de-DE', 'pt_BR' -> 'de', 'pt'
+    return str(code).replace('-', '_').split('_')[0].lower()
+
+
 class Res(object):
     """Res class to manage and translate resources
 
@@ -49,12 +87,42 @@ class Res(object):
         """List of widgests/objects to be translated when the language code changes"""
 
     def _initLanguageCode(self):
-        code = Config().get('LANGUAGE', DEFAULT_LANGUAGE)
+        # 10/2026: language of the QGIS user interface by default (setting 'auto');
+        #   a language chosen in the GeoDinQGIS menu is saved as before and used instead
+        #   (old code: code = Config().get('LANGUAGE', DEFAULT_LANGUAGE), i.e. Windows UI language)
+        # one-time reset to 'auto' with this version (a language chosen afterwards is kept)
+        if not Config().get('LANGUAGE_AUTO_2026', False):
+            Config()['LANGUAGE'] = AUTO_LANGUAGE
+            Config()['LANGUAGE_AUTO_2026'] = True
+        mode = Config().get('LANGUAGE', AUTO_LANGUAGE) or AUTO_LANGUAGE
+        self.__LanguageMode = mode
+        code = self._autoLanguageCode() if mode == AUTO_LANGUAGE else mode
         if code and (code not in self.ResFileCodes):
             self.log.warning("Language '%s' is not supported! (OS '%s')", code, DEFAULT_LANGUAGE)
-            code = ''
+            code = FALLBACK_LANGUAGE if FALLBACK_LANGUAGE in self.ResFileCodes else ''
+        self.log.info("Language '%s' (setting '%s')", code, mode)
         self.__LanguageCode = code
         return code
+
+    def _autoLanguageCode(self):
+        """returns the language code for the setting 'auto': QGIS UI language, else Windows UI language
+
+        10/2026
+        """
+        code = qgisUiLanguage() or DEFAULT_LANGUAGE
+        if code not in self.ResFileCodes:
+            code = FALLBACK_LANGUAGE
+        return code
+
+    @property
+    def AutoLanguageCode(self):
+        """language code used for the setting 'auto' (QGIS UI language) (10/2026)"""
+        return self._autoLanguageCode()
+
+    @property
+    def LanguageMode(self):
+        """language setting: 'auto' (QGIS UI language) or the chosen language code (10/2026)"""
+        return self.__LanguageMode
 
     def _loadLanguageDict(self):
         """ loads the translation dictionary of the language
@@ -76,7 +144,8 @@ class Res(object):
         outObj = {}
         try:
             # JSON-File vollständig einlesen...
-            with open(filename, 'r') as fileObj:
+            # 10/2026: encoding explicitly UTF-8 (resource files are UTF-8; default encoding on Windows is cp1252)
+            with open(filename, 'r', encoding='utf-8') as fileObj:
                 rows = fileObj.readlines()
 ##            self.log.debug("File content...\n\n%s\n\n", "".join(rows))
 ##            print("File content...\n\n%s\n\n" % "".join(rows))
@@ -131,11 +200,16 @@ class Res(object):
         08.09.2022 J.Ebert
         """
         self.log.info(code)
+        # 10/2026: code 'auto' -> language of the QGIS user interface
+        mode = code.lower()
+        if mode != self.__LanguageMode:
+            # save language setting ('auto' or language code) in the configuration
+            self.__LanguageMode = mode
+            Config()['LANGUAGE'] = mode
+        code = self._autoLanguageCode() if mode == AUTO_LANGUAGE else mode
         if self.__LanguageCode != code.lower():
             self.__LanguageCode = code.lower()
             self.log.debug(self.LanguageCode)
-            # save language code in the configuration
-            Config()['LANGUAGE'] = self.LanguageCode
             # load language dictionary
             self.__LanguageDict = self._loadLanguageDict()
             # translate registered widgests/objects

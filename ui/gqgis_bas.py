@@ -4,6 +4,8 @@ classes:
     GQgis_Bas_Widget            - widget base class
 
 functions:
+    busy()                      - context manager showing a 'please wait' status dialog (10/2026)
+    qsleep()                    - waits and keeps the QGIS user interface responsive (10/2026)
     cursor()                    - context manager for setting a custom cursor
     plugin()                    - returns GeODinQGIS plugin instance
 
@@ -128,43 +130,43 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
     # 29.03.2023 j.ebert, Anmerkung
     #   Enums/Konstanten zur besseren Programmierung/inkl. Kodeeingabe übernommen/implementiert
     #   vgl. https://doc.qt.io/qtforpython-5/PySide2/QtWidgets/QMessageBox.html
-    Ok = QtWidgets.QMessageBox.Ok
+    Ok = QtWidgets.QMessageBox.StandardButton.Ok
     """An 'OK' button defined with the AcceptRole. (QtWidgets.QMessageBox.StandardButton)"""
-    Open = QtWidgets.QMessageBox.Open
+    Open = QtWidgets.QMessageBox.StandardButton.Open
     """An 'Open' button defined with the AcceptRole. (QtWidgets.QMessageBox.StandardButton)"""
-    Save = QtWidgets.QMessageBox.Save
+    Save = QtWidgets.QMessageBox.StandardButton.Save
     """A 'Save' button defined with the AcceptRole. (QtWidgets.QMessageBox.StandardButton)"""
-    Cancel = QtWidgets.QMessageBox.Cancel
+    Cancel = QtWidgets.QMessageBox.StandardButton.Cancel
     """A 'Cancel' button defined with the RejectRole. (QtWidgets.QMessageBox.StandardButton)"""
-    Close = QtWidgets.QMessageBox.Close
+    Close = QtWidgets.QMessageBox.StandardButton.Close
     """A 'Close' button defined with the RejectRole. (QtWidgets.QMessageBox.StandardButton)"""
-    Discard = QtWidgets.QMessageBox.Discard
+    Discard = QtWidgets.QMessageBox.StandardButton.Discard
     """A 'Discard' or 'Don’t Save' button, depending on the platform, defined with the DestructiveRole. (QtWidgets.QMessageBox.StandardButton)"""
-    Apply = QtWidgets.QMessageBox.Apply
+    Apply = QtWidgets.QMessageBox.StandardButton.Apply
     """An 'Apply' button defined with the ApplyRole. (QtWidgets.QMessageBox.StandardButton)"""
-    Reset = QtWidgets.QMessageBox.Reset
+    Reset = QtWidgets.QMessageBox.StandardButton.Reset
     """A 'Reset' button defined with the ResetRole. (QtWidgets.QMessageBox.StandardButton)"""
-    RestoreDefaults = QtWidgets.QMessageBox.RestoreDefaults
+    RestoreDefaults = QtWidgets.QMessageBox.StandardButton.RestoreDefaults
     """A 'Restore Defaults' button defined with the ResetRole. (QtWidgets.QMessageBox.StandardButton)"""
-    Help = QtWidgets.QMessageBox.Help
+    Help = QtWidgets.QMessageBox.StandardButton.Help
     """A 'Help' button defined with the HelpRole. (QtWidgets.QMessageBox.StandardButton)"""
-    SaveAll = QtWidgets.QMessageBox.SaveAll
+    SaveAll = QtWidgets.QMessageBox.StandardButton.SaveAll
     """A 'Save All' button defined with the AcceptRole. (QtWidgets.QMessageBox.StandardButton)"""
-    Yes = QtWidgets.QMessageBox.Yes
+    Yes = QtWidgets.QMessageBox.StandardButton.Yes
     """A 'Yes' button defined with the YesRole. (QtWidgets.QMessageBox.StandardButton)"""
-    YesToAll = QtWidgets.QMessageBox.YesToAll
+    YesToAll = QtWidgets.QMessageBox.StandardButton.YesToAll
     """A 'Yes to All' button defined with the YesRole. (QtWidgets.QMessageBox.StandardButton)"""
-    No = QtWidgets.QMessageBox.No
+    No = QtWidgets.QMessageBox.StandardButton.No
     """A 'No' button defined with the NoRole. (QtWidgets.QMessageBox.StandardButton)"""
-    NoToAll = QtWidgets.QMessageBox.NoToAll
+    NoToAll = QtWidgets.QMessageBox.StandardButton.NoToAll
     """A 'No to All' button defined with the NoRole. (QtWidgets.QMessageBox.StandardButton)"""
-    Abort = QtWidgets.QMessageBox.Abort
+    Abort = QtWidgets.QMessageBox.StandardButton.Abort
     """An 'Abort' button defined with the RejectRole. (QtWidgets.QMessageBox.StandardButton)"""
-    Retry = QtWidgets.QMessageBox.Retry
+    Retry = QtWidgets.QMessageBox.StandardButton.Retry
     """A 'Retry' button defined with the AcceptRole. (QtWidgets.QMessageBox.StandardButton)"""
-    Ignore = QtWidgets.QMessageBox.Ignore
+    Ignore = QtWidgets.QMessageBox.StandardButton.Ignore
     """An 'Ignore' button defined with the AcceptRole. (QtWidgets.QMessageBox.StandardButton)"""
-    NoButton = QtWidgets.QMessageBox.NoButton
+    NoButton = QtWidgets.QMessageBox.StandardButton.NoButton
     """An invalid button."""
 
     log = logging.getLogger(f"{gqc._LOG_PARENTS}GQgis_MsgBox")
@@ -176,6 +178,30 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
         super().__init__(parent)
         self.setWindowIcon(self.QIcon("gIcon"))
         self.setWindowTitle(gqc.PRODUCT)
+
+    # 10/2026: texts of the message box translated in context 'GQgis_MsgBox'
+    #   (literal texts in the code, e.g. "Unknown error on 'Create object'")
+    @staticmethod
+    def _msgTrans(text):
+        if not isinstance(text, str) or not text:
+            return text
+        try:
+            return res.translate("GQgis_MsgBox", text)
+        except Exception:
+            return text
+
+    def setText(self, text):
+        super().setText(self._msgTrans(text))
+
+    def setInformativeText(self, text):
+        super().setInformativeText(self._msgTrans(text))
+
+    def setWindowTitle(self, title):
+        # "<product> - <title>": translate the title part
+        if isinstance(title, str) and " - " in title:
+            head, _sep, tail = title.partition(" - ")
+            title = "%s - %s" % (head, self._msgTrans(tail))
+        super().setWindowTitle(title)
 ##        self.setCursor(QtCore.Qt.ArrowCursor)
 ##        self.setCursor(QtCore.Qt.WhatsThisCursor)
 
@@ -197,9 +223,9 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
             msg.setWindowTitle("%s - %s" % (msg.windowTitle(), str(title)))
         msg.setText(text)
         msg.setIconPixmap(msg.QIcon("gIcon").pixmap(64, 64))
-        msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        msg.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Ok)
         msg.setInformativeText(info)
-        return msg.exec_()
+        return msg.exec()
 
     @classmethod
     def critical(
@@ -208,8 +234,8 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
         title,
         text,
         info=None,              # InformativeText
-        buttons=QtWidgets.QMessageBox.Ok,
-        defaultButton=QtWidgets.QMessageBox.NoButton
+        buttons=QtWidgets.QMessageBox.StandardButton.Ok,
+        defaultButton=QtWidgets.QMessageBox.StandardButton.NoButton
     ):
         """shows GeODinQGIS Infromation message box
 
@@ -227,10 +253,10 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
         if title:
             msg.setWindowTitle("%s - %s" % (msg.windowTitle(), str(title)))
         msg.setText(text)
-        msg.setIcon(QtWidgets.QMessageBox.Critical)
+        msg.setIcon(QtWidgets.QMessageBox.Icon.Critical)
         msg.setStandardButtons(buttons)
         msg.setInformativeText(info)
-        return msg.exec_()
+        return msg.exec()
 
     @classmethod
     def error(
@@ -239,8 +265,8 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
         title,
         text,
         info=None,              # InformativeText
-        buttons=QtWidgets.QMessageBox.Ok,
-        defaultButton=QtWidgets.QMessageBox.NoButton
+        buttons=QtWidgets.QMessageBox.StandardButton.Ok,
+        defaultButton=QtWidgets.QMessageBox.StandardButton.NoButton
     ):
         """shows GeODinQGIS Infromation message box
 
@@ -251,10 +277,10 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
         if title:
             msg.setWindowTitle("%s - %s" % (msg.windowTitle(), str(title)))
         msg.setText(text)
-        msg.setIcon(QtWidgets.QMessageBox.Critical)
+        msg.setIcon(QtWidgets.QMessageBox.Icon.Critical)
         msg.setStandardButtons(buttons)
         msg.setInformativeText(info)
-        return msg.exec_()
+        return msg.exec()
 
     @classmethod
     def information(
@@ -263,8 +289,8 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
         title,
         text,
         info=None,              # InformativeText
-        buttons=QtWidgets.QMessageBox.Ok,
-        defaultButton=QtWidgets.QMessageBox.NoButton
+        buttons=QtWidgets.QMessageBox.StandardButton.Ok,
+        defaultButton=QtWidgets.QMessageBox.StandardButton.NoButton
     ):
         """shows GeODinQGIS Infromation message box
 
@@ -275,10 +301,10 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
         if title:
             msg.setWindowTitle("%s - %s" % (msg.windowTitle(), str(title)))
         msg.setText(text)
-        msg.setIcon(QtWidgets.QMessageBox.Information)
+        msg.setIcon(QtWidgets.QMessageBox.Icon.Information)
         msg.setStandardButtons(buttons)
         msg.setInformativeText(info)
-        return msg.exec_()
+        return msg.exec()
 
     @classmethod
     def question(
@@ -287,8 +313,8 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
         title,
         text,
         info=None,              # InformativeText
-        buttons=QtWidgets.QMessageBox.Yes|QtWidgets.QMessageBox.No,
-        defaultButton=QtWidgets.QMessageBox.NoButton
+        buttons=QtWidgets.QMessageBox.StandardButton.Yes|QtWidgets.QMessageBox.StandardButton.No,
+        defaultButton=QtWidgets.QMessageBox.StandardButton.NoButton
     ):
         """shows GeODinQGIS Question message box
 
@@ -299,10 +325,10 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
         if title:
             msg.setWindowTitle("%s - %s" % (msg.windowTitle(), str(title)))
         msg.setText(text)
-        msg.setIcon(QtWidgets.QMessageBox.Question)
+        msg.setIcon(QtWidgets.QMessageBox.Icon.Question)
         msg.setStandardButtons(buttons)
         msg.setInformativeText(info)
-        return msg.exec_()
+        return msg.exec()
 
     @classmethod
     def warning(
@@ -311,8 +337,8 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
         title,
         text,
         info=None,              # InformativeText
-        buttons=QtWidgets.QMessageBox.Ok,
-        defaultButton=QtWidgets.QMessageBox.NoButton
+        buttons=QtWidgets.QMessageBox.StandardButton.Ok,
+        defaultButton=QtWidgets.QMessageBox.StandardButton.NoButton
     ):
         """shows GeODinQGIS Infromation message box
 
@@ -323,10 +349,10 @@ class GQgis_MsgBox(QtWidgets.QMessageBox, GQgis_Bas_Widget):
         if title:
             msg.setWindowTitle("%s - %s" % (msg.windowTitle(), str(title)))
         msg.setText(text)
-        msg.setIcon(QtWidgets.QMessageBox.Warning)
+        msg.setIcon(QtWidgets.QMessageBox.Icon.Warning)
         msg.setStandardButtons(buttons)
         msg.setInformativeText(info)
-        return msg.exec_()
+        return msg.exec()
 
 
 def plugin():
@@ -338,6 +364,49 @@ def plugin():
     27.04.2023 j.ebert
     """
     return qgis.utils.plugins['GeODinQGIS']
+
+def qsleep(seconds):
+    """waits 'seconds' and keeps the user interface (e.g. a status dialog) responsive
+
+    10/2026
+    """
+    timer = QtCore.QElapsedTimer()
+    timer.start()
+    app = QtWidgets.QApplication.instance()
+    while timer.elapsed() < seconds * 1000:
+        if app is not None:
+            app.processEvents(QtCore.QEventLoop.ProcessEventsFlag.AllEvents, 50)
+        QtCore.QThread.msleep(20)
+
+
+@contextmanager
+def busy(parent, text, title=None):
+    """context manager for a modal 'please wait' status dialog (busy indicator, no cancel)
+
+    usage:
+        with busy(parent, "GeoDin is starting...") as dlg:
+            ...                         # long running task
+            dlg.setLabelText("...")     # optional: update the text
+
+    10/2026
+    """
+    dlg = QtWidgets.QProgressDialog(text, "", 0, 0, parent)
+    dlg.setWindowTitle(title or gqc.PRODUCT)
+    dlg.setWindowIcon(GQgis_Bas_Widget.QIcon("gIcon"))
+    dlg.setCancelButton(None)
+    dlg.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal)
+    dlg.setMinimumDuration(0)
+    dlg.setAutoClose(False)
+    dlg.setAutoReset(False)
+    dlg.setMinimumWidth(420)
+    dlg.show()
+    QtWidgets.QApplication.instance().processEvents()
+    try:
+        yield dlg
+    finally:
+        dlg.close()
+        dlg.deleteLater()
+
 
 @contextmanager
 def cursor(shape=None):
@@ -353,7 +422,7 @@ def cursor(shape=None):
     """
     try:
         if shape is None:
-            shape = QtCore.Qt.ArrowCursor
+            shape = QtCore.Qt.CursorShape.ArrowCursor
         QtWidgets.QApplication.instance().setOverrideCursor(QtGui.QCursor(shape))
         yield
     finally:

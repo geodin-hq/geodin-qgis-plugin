@@ -14,6 +14,7 @@ from pathlib import Path
 
 import qgis.core
 import qgis.utils
+from qgis.PyQt import QtWidgets
 
 from GeODinQGIS import env
 import GeODinQGIS.gqgis_base as gqb
@@ -191,6 +192,39 @@ class GQgis_App:
             self._Plugin = plugin()
         return self._Plugin
 
+    # 10/2026: auto-load of the DDX configuration when QGIS starts
+    #   (stored in the QGIS user settings (QgsSettings), not in the QGIS project)
+    _SETTINGS_AUTOLOAD = "GeODinQGIS/autoLoadDDX"
+    _SETTINGS_AUTOLOAD_FILE = "GeODinQGIS/autoLoadDDXFile"
+
+    def autoLoadDDXFile(self):
+        """DDX file to be loaded automatically when QGIS starts
+
+        returns:
+            ddxFile (str)       - DDX file or empty string if auto-load is disabled
+
+        10/2026
+        """
+        settings = qgis.core.QgsSettings()
+        enabled = settings.value(self._SETTINGS_AUTOLOAD, False, type=bool)
+        ddxFile = settings.value(self._SETTINGS_AUTOLOAD_FILE, "", type=str)
+        return ddxFile if (enabled and ddxFile) else ""
+
+    def setAutoLoadDDXFile(self, ddxFile, enabled=True):
+        """saves/resets the DDX file to be loaded automatically when QGIS starts
+
+        10/2026
+        """
+        settings = qgis.core.QgsSettings()
+        if enabled and ddxFile:
+            settings.setValue(self._SETTINGS_AUTOLOAD, True)
+            settings.setValue(self._SETTINGS_AUTOLOAD_FILE, str(ddxFile))
+            self.log.info("DDX file '%s' is loaded automatically when QGIS starts", ddxFile)
+        else:
+            settings.setValue(self._SETTINGS_AUTOLOAD, False)
+            self.log.info("Auto-load of DDX file is disabled")
+        return
+
     def ddxFile(self):
         self.log.warning(
             "Method '%s' is superseded by property '%s'\n\t%s",
@@ -336,6 +370,16 @@ class GQgis_App:
                 # DB-Verbindungen von GeODin aktualsieren...
                 gDBConf = gx.gApp.databases()
                 self.log.debug(str(gDBConf))
+                # 11/2026 notice about skipped (invalid) database entries
+                skipped = getattr(gx.gApp, "skippedDatabases", [])
+                if skipped:
+                    from GeODinQGIS.ui.gqgis_options import pushMessage
+                    pushMessage(
+                        self.translate(
+                            "Invalid database connection in GeoDin skipped (missing name or connection string): %s"
+                        ) % ", ".join(skipped),
+                        level="warning", duration=15
+                    )
                 gDBList = [GoDatabase.from_TGClass(settings) for settings in gDBConf]
                 # DDX-Conten laden...
                 self.DBs = self.DDX.restore(gDBList)
@@ -428,6 +472,25 @@ class GQgis_App:
         else:
             pass
 
+    def _askRetryGeoDin(self):
+        """asks the user to confirm the license selection in GeoDin; True for 'Retry'
+
+        10/2026
+        """
+        msg = MsgBox(self.Plugin.parent())
+        msg.setWindowTitle("%s - %s" % (gqc.PRODUCT, self.translate("Connection to GeoDin")))
+        msg.setIcon(QtWidgets.QMessageBox.Icon.Warning)
+        msg.setText(self.translate("The connection to GeoDin could not be established yet."))
+        msg.setInformativeText(self.translate(
+            "1. Bring the GeoDin window to the front (if necessary via the taskbar)\n"
+            "2. Confirm the license selection\n"
+            "3. Click 'Retry'"))
+        btnRetry = msg.addButton(self.translate("Retry"), QtWidgets.QMessageBox.ButtonRole.AcceptRole)
+        msg.addButton(self.translate("Cancel"), QtWidgets.QMessageBox.ButtonRole.RejectRole)
+        msg.setDefaultButton(btnRetry)
+        msg.exec()
+        return msg.clickedButton() is btnRetry
+
     def openGAppCnn(self):
         """ opens GeODin-App-Connection
 
@@ -438,31 +501,44 @@ class GQgis_App:
         self._regUpdateUI()
         # Verbidung mit GeODin-App herstellen
         try:
+            # 10/2026: check the GeoDin COM server registration for the chosen geodin.ini
+            #   and offer to register the matching geodin.exe (see ui/gqgis_comreg.py)
+            if self.GAppFolder:
+                from GeODinQGIS.ui.gqgis_comreg import ensureComRegistration
+                ensureComRegistration(self.Plugin.parent(), self.GAppFolder, onConnect=True)
             # GeODin starten/verbinden...
+            # 10/2026: status dialog while GeoDin is started/connected (the first start after
+            #   a new registration of the GeoDin COM server can take a while)
+            from GeODinQGIS.ui.gqgis_bas import busy, qsleep
             self.log.debug("GAppFolder %s", self.GAppFolder)
-            hdl = gx.gApp.open(self.GAppFolder)
+            with busy(
+                self.Plugin.parent(),
+                self.translate("GeoDin is being started and connected ...") + "\n\n" +
+                self.translate("Preparing the connection. Please wait.")
+            ):
+                hdl = gx.gApp.open(self.GAppFolder)
             # GeODin Startup/Lizenz abwarten...
             while (hdl == 0):
                 sleepTime = 1
                 breakTime = time.time() + 5 * sleepTime
-                while (
-                    (time.time() < breakTime) and
-                    (hdl == 0)
+                with busy(
+                    self.Plugin.parent(),
+                    self.translate("Waiting for GeoDin (license selection) ...")
                 ):
-                    hdl = gx.gApp.renew()
-                    if not hdl:
-                        self.log.debug("")
-                        time.sleep(sleepTime)
+                    while (
+                        (time.time() < breakTime) and
+                        (hdl == 0)
+                    ):
+                        hdl = gx.gApp.renew()
+                        if not hdl:
+                            self.log.debug("")
+                            qsleep(sleepTime)
                 if not hdl:
+                    # 10/2026: GeoDin window to the front (license selection) and clearer dialog
+                    #   (before: information box 'Check GeoDin application!' with Retry/Cancel)
+                    _bringGeoDinToFront()
                     with cursor():
-                        dlgRes = MsgBox.information(
-                            self.Plugin.parent(),
-                            'GeODin',
-                            self.translate("Check GeODin application!"),
-                            self.translate("Bring the GeODin window to the front\nand check the license selection!"),
-                            MsgBox.Retry|MsgBox.Cancel
-                        )
-                        if (dlgRes != MsgBox.Retry):
+                        if not self._askRetryGeoDin():
                             raise gqb.GQgisCanceldByUser("Canceld by user!")
             # 05/2023 j.ebert, Achtung
             #   Die Methode _reloadDDX() immer nach erfolgreichen Verbinden mit GeODin aufrufen.
@@ -471,20 +547,33 @@ class GQgis_App:
         except gqb.GQgisCanceldByUser as exc:
             gx.gApp.reset()
             self.log.warning(exc.msg())
+        except gqb.GxGAppRestartRequiredError as exc:
+            # 10/2026: the running GeoDin was started with another configuration (geodin.ini)
+            #   -> short, translated message (before: English exception text with both folders,
+            #      the folders are only written to the log now)
+            gx.gApp.reset()
+            self.log.warning(exc.msg().replace("\n", "\n\t"))
+            with cursor():
+                MsgBox.warning(
+                    self.Plugin.parent(),
+                    self.translate("Connection to GeoDin"),
+                    self.translate("Please close GeoDin and connect again."),
+                    self.translate("The running GeoDin was started with another configuration.")
+                )
         except gqb.GxException as exc:
             gx.gApp.reset()
             msg = exc.msg()
             self.log.warning(msg.replace("\n","\n\t"))
             with cursor():
-                MsgBox.error(self.Plugin.parent(), 'GeODin', msg.replace("\n","\n   "))
+                MsgBox.error(self.Plugin.parent(), 'GeoDin', msg.replace("\n","\n   "))
         except:
             gx.gApp.reset()
             self.log.critical("Major disater...", exc_info=True)
             with cursor():
                 MsgBox.error(
                     self.Plugin.parent(),
-                    'GeODin',
-                    "Unknown error on update GeODin connection"
+                    'GeoDin',
+                    "Unknown error on update GeoDin connection"
                 )
         # 'maskable' UI-Update ggf. ausführen
         self._updateUI()
@@ -515,7 +604,7 @@ class GQgis_App:
         self.log.log(gqc._LOG_TRACE,"")
         self.log.debug(f"""
     gQGIS   {self.GAppFolder}
-    GeODin  {gx.gApp.AppFolder}
+    GeoDin  {gx.gApp.AppFolder}
         """)
         if not self.isAvailable:
             # Wenn GeODin nicht verfügbar/nich insatlliert ist,
@@ -553,8 +642,8 @@ class GQgis_App:
                 with cursor():
                     MsgBox.error(
                         self.Plugin.parent(),
-                        'GeODin',
-                        "Unknown error on update GeODin connection"
+                        'GeoDin',
+                        "Unknown error on update GeoDin connection"
                     )
                 raise gqb.GQgisBreak()
         return
@@ -602,6 +691,53 @@ class GQgis_App:
         """
         self.log.log(gqc._LOG_TRACE,"TRACE")
         self._updateUI(True)
+
+
+
+def _bringGeoDinToFront():
+    """brings the window of the running GeoDin application (geodin.exe) to the front
+
+    Windows may refuse SetForegroundWindow (focus stealing prevention), then the window only
+    flashes in the taskbar - the dialog text explains what to do. (10/2026)
+    """
+    try:
+        import win32api
+        import win32con
+        import win32gui
+        import win32process
+    except Exception:
+        return False
+    found = []
+
+    def _enum(hwnd, _):
+        try:
+            if not win32gui.IsWindowVisible(hwnd) or not win32gui.GetWindowText(hwnd):
+                return True
+            _tid, pid = win32process.GetWindowThreadProcessId(hwnd)
+            hProc = win32api.OpenProcess(0x1000 | 0x0010, False, pid)   # QUERY_LIMITED_INFORMATION | VM_READ
+            try:
+                exe = win32process.GetModuleFileNameEx(hProc, 0)
+            finally:
+                win32api.CloseHandle(hProc)
+            if os.path.basename(exe).lower() == "geodin.exe":
+                found.append(hwnd)
+        except Exception:
+            pass
+        return True
+
+    try:
+        win32gui.EnumWindows(_enum, None)
+        for hwnd in found:
+            if win32gui.IsIconic(hwnd):
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            try:
+                win32gui.SetForegroundWindow(hwnd)
+            except Exception:
+                win32gui.FlashWindow(hwnd, True)
+        return bool(found)
+    except Exception:
+        logging.getLogger(f"{gqc._LOG_PARENTS}GQgis_App").debug("", exc_info=True)
+        return False
 
 
 def main():

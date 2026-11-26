@@ -46,7 +46,7 @@ class GQgis_Dlg_Login(QtWidgets.QDialog, GQgis_Bas_Widget):
         self.log.debug("translate in context '%s'", self._context)
         # translate Ui/QWidget
         try:
-            self.setWindowTitle(self.trans("GeODinQGIS - Login"))
+            self.setWindowTitle(self.trans("GeoDinQGIS - Login"))
             self.ui.dbNameLabel.setText(self.trans("Database:"))
             self.ui.dbUserLabel.setText(self.trans("Username:"))
             self.ui.dbPasswordLabel.setText(self.trans("Password:"))

@@ -1,0 +1,10 @@
+*.py text eol=crlf
+*.txt text eol=crlf
+*.json text eol=crlf
+*.pdf binary
+*.png binary
+
+.gitignore export-ignore
+.gitattributes export-ignore
+help/src export-ignore
+help/_previous_* export-ignore

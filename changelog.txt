@@ -1,3 +1,26 @@
+# Version __4.0.0.2644__ (10/2026)
+
+* Changes
+  * runs on QGIS 3.28 and newer (Qt5) and QGIS 4 (Qt6)
+  * Oracle databases (FireDAC DriverID Ora) through the Python package oracledb 2.0+, no Oracle client needed
+  * optional: load a DDX file automatically when QGIS starts
+  * new tool "Create object": click in the map to create a GeoDin object at that point
+  * tools Selection and Hotlink: choice of the GeoDin method that runs after the selection
+  * layer styles (*.qml) for object and measurement point layers
+  * GeoDin system queries in the object tree
+  * check of the GeoDin COM server registration, with repair
+  * support e-mail with logs and system information as ZIP
+  * passwords are masked in the log files
+  * spelling GeoDin / GeoDinQGIS
+  * clear message on systems without Windows or pywin32
+  * version scheme Main.Minor.Bugfix.YYWW
+
+* Bug fixing
+  * an invalid database entry (no DriverID) no longer breaks the whole GeoDin connection
+  * misconfigured database: clear error instead of a login prompt
+  * layers are only added if their GeoJSON exists and opens
+  * CRS validity check
+
 # Version __3.0.2417.1__ (26.07.2024)
 
 * Bug fixing

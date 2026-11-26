@@ -42,8 +42,12 @@ class GQgis:
     def initGui(self):
         self.log.log(gqc._LOG_TRACE,"")
         # Add Plugin to toolbar
-        self.toolBar = self.iface().addToolBar("GeODin")
-        self.toolBar.addWidget(ui.GQgis_TBtn_Help(self.parent()))
+        self.toolBar = self.iface().addToolBar("GeoDin")
+        # 10/2026: keep the old objectName so QGIS restores the saved toolbar position
+        self.toolBar.setObjectName("GeODin")
+        # self.toolBar.addWidget(ui.GQgis_TBtn_Help(self.parent()))
+        # 10/2026: order of the toolbar - DDX, connect, Explorer | layer selection, Hotlink,
+        #   Create object, Selection | Settings (gear menu, right)
         self.toolBar.addAction(ui.GQgis_Act_DDX(self.parent()))
         self.toolBar.addSeparator()
         self.toolBar.addAction(ui.GQgis_Act_Connect(self.parent(), None))
@@ -56,10 +60,31 @@ class GQgis:
 ##        self.toolBar.addAction(ui.GQgis_Act_Refresh(self.parent(), None))
         self.toolBar.addSeparator()
         cboLayers = ui.GQgis_Cbo_Layers.instance(self.parent)
-        self.toolBar.addAction(ui.GQgis_Act_LayersReload(self.parent(), cboLayers.reloadGoLayers))
+        # self.toolBar.addAction(ui.GQgis_Act_LayersReload(self.parent(), cboLayers.reloadGoLayers))
+        # 10/2026: execute() - reload the layer selection and update the data of the selected layer
+        self.toolBar.addAction(ui.GQgis_Act_LayersReload(self.parent(), None))
         self.toolBar.addWidget(cboLayers)
-        self.toolBar.addAction(ui.GQgis_Act_ToolSelection(self.parent(), None))
-        self.toolBar.addAction(ui.GQgis_Act_ToolHotlink(self.parent(), None))
+        # self.toolBar.addAction(ui.GQgis_Act_ToolHotlink(self.parent(), None))
+        # 10/2026: button with menu (arrow) - GeoDin method after the click
+        actHotlink = ui.GQgis_Act_ToolHotlink(self.parent(), None)
+        self.toolBar.addAction(actHotlink)
+        btnHotlink = self.toolBar.widgetForAction(actHotlink)
+        if isinstance(btnHotlink, QtWidgets.QToolButton):
+            btnHotlink.setPopupMode(QtWidgets.QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        # 10/2026: map tool 'Create object' (right)
+        self.toolBar.addAction(ui.GQgis_Act_ToolCreateObject(self.parent(), None))
+        # self.toolBar.addAction(ui.GQgis_Act_ToolSelection(self.parent(), None))
+        # 10/2026: button with menu (arrow) - GeoDin method after the selection
+        actSelection = ui.GQgis_Act_ToolSelection(self.parent(), None)
+        self.toolBar.addAction(actSelection)
+        btnSelection = self.toolBar.widgetForAction(actSelection)
+        if isinstance(btnSelection, QtWidgets.QToolButton):
+            # btnSelection.setPopupMode(QtWidgets.QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+            # 10/2026: a click opens the menu - choose the function first, then select in the map
+            btnSelection.setPopupMode(QtWidgets.QToolButton.ToolButtonPopupMode.InstantPopup)
+        # 10/2026: Settings (gear menu) at the right
+        self.toolBar.addSeparator()
+        self.toolBar.addWidget(ui.GQgis_TBtn_Help(self.parent()))
 ##        self.toolBar.addAction(ui.GQgis_Act_Pan(self.parent(), None))
 ##        self.toolBar.addAction(ui.GQgis_Act_MsgBox(self.parent(), None))
         self.updateGui()
@@ -71,7 +96,7 @@ class GQgis:
         #   QAction der GUI werden über ObjectName gefunden, aber haben kein Attr. Enabled.
         #   Alle QToolButton der ToolBar analysieren und deren QAction analysieren/auswerten.
         for btn in self.toolBar.findChildren(
-            QtWidgets.QToolButton, '', QtCore.Qt.FindDirectChildrenOnly
+            QtWidgets.QToolButton, '', QtCore.Qt.FindChildOption.FindDirectChildrenOnly
         ):
             acts = [act for act in btn.actions() if act.objectName().startswith('GQgis')]
             if (
@@ -87,6 +112,18 @@ class GQgis:
         env._TmpFolder = None
         # disconnect functions/receiver to QGIS signals
         self._disconnect()
+        # 10/2026: remove the Explorer from the QGIS dock area (added in GQgis_Frm_GCat.showAction())
+        try:
+            frm = getattr(ui.GQgis_Frm_GCat, 'instance', None)
+            if frm is not None:
+                self._iface.removeDockWidget(frm)
+                frm.deleteLater()
+            # the next startPlugin() creates a new Explorer (see GQgis_Frm_GCat.showAction())
+            ui.GQgis_Frm_GCat.instance = None
+            if hasattr(ui.GQgis_Frm_GCat, '_showAction'):
+                del ui.GQgis_Frm_GCat._showAction
+        except Exception:
+            self.log.error("Explorer could not be removed", exc_info=True)
         # remove tool bar
         del self.toolBar
 
@@ -260,6 +297,17 @@ class GQgis:
         self.log.debug("")
         self._logProjectAttr()
 
+    def _autoLoadDDXFile(self):
+        """DDX file to be loaded automatically (if enabled and the file exists)
+
+        10/2026
+        """
+        ddxFile = self._app.autoLoadDDXFile()
+        if ddxFile and not Path(ddxFile).is_file():
+            self.log.warning("Auto-load DDX file '%s' not found", ddxFile)
+            ddxFile = ""
+        return ddxFile
+
     def onNewProjectCreated(self):
         """event function/receiver is triggered when a QGIS interface ...
 
@@ -269,8 +317,10 @@ class GQgis:
         self._logProjectAttr()
         # GeODinQGIS project settings zurücksetzen...
         self._resetProjSettings()
-        # DDX-File der QGIS-App zurücksetzen
-        self._app.updateDDXFile("")
+        # reset the DDX file of the QGIS app, or
+        # 10/2026: load the saved DDX configuration automatically (if enabled)
+        #   (this signal is also emitted when QGIS starts without a project)
+        self._app.updateDDXFile(self._autoLoadDDXFile())
 
     def onCleared(self):
         """event function/receiver is triggered when a QGIS project is loaded
@@ -311,12 +361,17 @@ class GQgis:
             for key in ['ddxFile', 'version', 'updUser', 'updDate', 'insUser', 'insDate']:
                 self.projSettings()[key] = qgsProj.readEntry(self.projScope(), key, "")[0]
             self.log.info(
-                "QGIS project: %s\n\tGeODinQGIS settings:\n\t\t%s",
+                "QGIS project: %s\n\tGeoDinQGIS settings:\n\t\t%s",
                 self.proj().absoluteFilePath(),
                 "\n\t\t".join(["%s: %s" % item for item in self.projSettings().items()])
             )
         # DDX-File der QGIS-App setzen (und vorher ggf. prüfen?!)
-        self._app.updateDDXFile(self._abspath(self.projSettings().get('ddxFile', "")))
+        ddxFile = self._abspath(self.projSettings().get('ddxFile', ""))
+        if not ddxFile:
+            # 10/2026: QGIS project without GeoDinQGIS settings
+            #   -> load the saved DDX configuration automatically (if enabled)
+            ddxFile = self._autoLoadDDXFile()
+        self._app.updateDDXFile(ddxFile)
 
     def onWriteProject(self):
         """event function/receiver is triggered when a QGIS project is writen/saved
@@ -346,7 +401,7 @@ class GQgis:
             #       qgsProj.readEntry('GeODinQGIS','DDX','defaultStr')  -> ('defaultStr', False)
             #       qgsProj.entryList('GeODinQGIS','DDX')               -> []
             #       qgsProj.entryList('GeODinQGIS','')                  -> []
-            self.log.debug("GeODinQGIS-Entries are removed from QGIS project")
+            self.log.debug("GeoDinQGIS-Entries are removed from QGIS project")
             for key in qgsProj.entryList(self.projScope(),''):
                 qgsProj.removeEntry(self.projScope(), key)
         elif self.projSettings().get('ddxFile',"").lower() != ddxFile.lower():
@@ -363,7 +418,7 @@ class GQgis:
             self.projSettings().setdefault('insUser', self.projSettings()['updUser'])
             self.projSettings().setdefault('insDate', self.projSettings()['updDate'])
             # - GeODinQGIS-Entries vom QGIS Projekt aktualisieren...
-            self.log.debug("GeODinQGIS-Entries are updated in QGIS project")
+            self.log.debug("GeoDinQGIS-Entries are updated in QGIS project")
             for key, val in self.projSettings().items():
                 qgsProj.writeEntry(self.projScope(), key, val)
             # - alte/nicht mehr unterstützte GeODinQGIS-Entries vom QGIS Projekt löschen...
@@ -371,7 +426,7 @@ class GQgis:
             oldKeys = [key for key in qgsProj.entryList(self.projScope(),'') if key not in prjKeys]
             if oldKeys:
                 self.log.warning(
-                    "Obsolate GeODinQGIS-Entries are removed from QGIS project \n\t\t%s",
+                    "Obsolate GeoDinQGIS-Entries are removed from QGIS project \n\t\t%s",
                     "\n\t".join(["%s\\%s" % (self.projScope(), key) for key in oldKeys])
                 )
                 for key in oldKeys:

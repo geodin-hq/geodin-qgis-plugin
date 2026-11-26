@@ -18,8 +18,13 @@ class GoQuery(GoBaseClass):
         'GxTypLOC',
         'GxTypINV',
         'GxQryLOC',
-        'GxQryINV'
+        'GxQryINV',
+        # 11/2026: GeoDin system queries (*.GSQ, see gx/sysquery.py)
+        'GxSysLOC',
+        'GxSysINV'
     ]
+    # kinds referenced by the name in the GOM (not by INV_TYPE/GEN_DESC)
+    _NamedKinds = ('GxQryLOC', 'GxQryINV', 'GxSysLOC', 'GxSysINV')
 
     def __init__(
         self,
@@ -36,6 +41,12 @@ class GoQuery(GoBaseClass):
         self._Desc = ""
         self._Kind = ""
         self._Opts = None
+        # 10/2026: number of objects/measurement points (GxAllLOC, GxTypLOC, GxTypINV),
+        #   None if unknown (user queries, not loaded); not saved in the DDX
+        self._Count = None
+        # 10/2026: name of the query in the GeoDin object manager, if it differs from Label
+        #   (found by GxCOMClient.selectObject, not saved in the DDX)
+        self._GOMLabel = None
 
     @property
     def CRef(self):
@@ -53,6 +64,11 @@ class GoQuery(GoBaseClass):
         27.07.2023 j.ebert
         """
         return self._DbRef
+
+    @property
+    def Count(self):
+        """number of objects/measurement points of this query or None if unknown (10/2026)"""
+        return self._Count
 
     @property
     def Desc(self):
@@ -73,6 +89,10 @@ class GoQuery(GoBaseClass):
         13.06.2023 j.ebert
         """
         info = f"{self.PrjID} {self.Kind} ({self._Desc})".rstrip(' ()')
+        if self._Kind in ('GxSysLOC', 'GxSysINV'):
+            # 11/2026: system query - file of the query
+            info = "%s\n%s: %s" % (
+                info, self.translate("GeoDin system query"), (self._Opts or [""])[0])
         if self._error:
             info = "%s\n%s" % (info, self._error)
         return info
@@ -105,7 +125,9 @@ class GoQuery(GoBaseClass):
         #   werden und dem Laden vom Dictionary in Abhängigkeit der der GeoDin-Spracheinstellung.
         #   Damit wird das Attribut _Label in dieser Klasse nicht mehr unterstützt!!!
 ##        return self._Label if self._Label else self._Name
-        return self._Name if self._Kind in ('GxQryINV', 'GxQryLOC') else self.goDict(self._Name)
+##        return self._Name if self._Kind in ('GxQryINV', 'GxQryLOC') else self.goDict(self._Name)
+        # 11/2026: system queries (GxSys*) like GeoDin queries - name as shown in the GOM
+        return self._Name if self._Kind in self._NamedKinds else self.goDict(self._Name)
 
     @property
     def UID(self):
@@ -244,6 +266,10 @@ class GoQuery(GoBaseClass):
         self.log.log(gqc._LOG_TRACE, "")
         # Paramater der Datenbank laden...
         prms = self.DbRef.prmsSelectObject(mode)
+        # 10/2026: name in the GeoDin object manager (if known) and alternative names
+        #   ('_QueryCandidates' is not passed to GeoDin, see GxCOMClient.selectObject)
+        prms['_QueryCandidates'] = self.gomLabelCandidates()
+        prms['_GoQuery'] = self
         # Parameter für Item/Knoten im GOM aktualisieren/überschreiben...
         # 08/2023 j.ebert, Achtung, Prm Query hier mit Attr Label setzen
         #   Attr Name   - Definition in der GeODin-DB (INV_NAME, GEN_NAME, ...)
@@ -267,6 +293,47 @@ class GoQuery(GoBaseClass):
                 'Expand': "false",
             })
         return prms
+
+    def gomLabelCandidates(self):
+        """possible names of the query in the GeoDin object manager (10/2026)
+
+        GeoDin does not always show the name from the database (SYS_INVTYPES.INV_NAME) for
+        measurement point types, e.g. INV_NAME 'samples  (geot. borehole)' is shown as
+        '(G1) Samples' (prefix of the object type + table name in SYS_LOCTABTY). The names are
+        tried in this order until GeoDin finds the query.
+        """
+        import re
+        label = self.Label
+        names = []
+        if self._GOMLabel:
+            names.append(self._GOMLabel)
+        names += [label, " ".join(str(label).split())]
+        if self._Kind == 'GxTypINV':
+            invType = (self._Desc or "")[:3]
+            try:
+                locTypes = {row[0]: row[1] for row in (self.DbRef.GT_LOCTYPES or [])}
+                for row in (self.DbRef.GT_LOCTABTY or []):
+                    if len(row) < 7 or row[6] != invType:
+                        continue
+                    genName = str(locTypes.get(row[0], "") or "")
+                    tabName = " ".join(str(row[2] or "").split())
+                    m = re.match(r"^\(\s*[^)]*\)", genName)
+                    if m and tabName:
+                        names.append(f"{m.group(0)} {tabName}")
+                    if tabName:
+                        names.append(tabName)
+                    if genName and str(row[3]) == "1":
+                        # measurement point type of the object itself (table type 1, general
+                        #   information), e.g. '(G1) Location' -> '(G1) Locations'
+                        names.append(f"{genName}s")
+                        names.append(genName)
+            except Exception:
+                self.log.debug("", exc_info=True)
+        unique = []
+        for name in names:
+            if name and name not in unique:
+                unique.append(name)
+        return unique
 
     def tempPath(self):
         dataPath = Path(self.dataSource())
@@ -357,7 +424,23 @@ class GoQuery(GoBaseClass):
         }.get(data[1], 'GxQry???')
         obj._Opts = [data[-1], data[1]]
         if data[-1] != 1:
-            obj._error = "Query name in GeODin object manager not unique!"
+            obj._error = "Query name in GeoDin object manager not unique!"
+        obj.validate()
+        return obj
+
+    @classmethod
+    def from_SysQRY(
+        cls,
+        dbRef,
+        prjID,
+        data                    # dict {'Name', 'Grp' (LOC|INV), 'File'} (see gx.sysquery)
+    ):
+        """GeoDin system query (*.GSQ in <ProgramData>\\QUERYDEF\\, 11/2026)"""
+        obj = cls(dbRef, prjID, data['Name'])
+        obj._tag = data
+        obj._Desc = ""
+        obj._Kind = 'GxSysINV' if data.get('Grp') == 'INV' else 'GxSysLOC'
+        obj._Opts = [data.get('File', ""), 'SYSQUERY']
         obj.validate()
         return obj
 
@@ -378,8 +461,9 @@ class GoQuery(GoBaseClass):
             # (siehe auch GoQuery.__eq__() und GoQuery.__members())
             # - Referenz innerhalb vom DDX ist UID, also
             #   Attr _DbRef, _PrjID, _Kind und _Desc nicht aktualisieren/überladen
-            if self._Kind in ('GxQryINV', 'GxQryLOC'):
-                # Abfragen GxQryINV, GxQryLOC...
+##            if self._Kind in ('GxQryINV', 'GxQryLOC'):
+            if self._Kind in self._NamedKinds:
+                # Abfragen GxQryINV, GxQryLOC (11/2026: und Systemabfragen GxSysINV, GxSysLOC)...
                 # - Referenz zwischen DDX und GeODin-Datenbank ist Namen, also
                 #   Attr _Name nicht aktualisieren/überladen
                 #   (in der GeODin-DB SYS_PRJDEFS::OBJ_NAME)
@@ -400,6 +484,8 @@ class GoQuery(GoBaseClass):
             # - Attr _tag übernehmen (Daten der Abfrage, die aus der GeODin-DB geladen wurden)
             #   08/2023 j.ebert, Attr _tag wird in GoQuery.from_json() nicht gesetzt
             self._tag = other._tag
+            # - 10/2026: Attr _Count (number of objects/measurement points) übernehmen
+            self._Count = other._Count
             # - Attr _error aktualisieren/überladen
             #   08/2023 j.ebert, Anmerkung
             #       Attr _error nicht zurücksetzen, ggf. hat other auch einen Fehler
@@ -428,14 +514,14 @@ class GoQuery(GoBaseClass):
         obj._Kind = dmpDict.get('Kind', 'Kind°°°°')
         obj._Desc = dmpDict.get('Desc', 'Desc°°°°')
         obj._Opts = dmpDict.get('Opts')
-        obj._error = "No longer in GeODin database"
+        obj._error = "No longer in GeoDin database"
         # 08/2023 j.ebert, Anmerkung
         #   Derzeit wird diese Methode ausschließlich zum laden aus dem DDX genutzt.
         #   - Attr _error setzen und beim Überladen mit GoQuery aus der GeODin-DB überschreiben
         #     (Attr isDisabled ist abhängig vom Attr _isError)
         #   - Attr _isUsed setzen, damit die GoQuery im DDX wieder mit gespeichert wird und
         #     nicht beim Speichern der GoDatabase im DDX "verloren" geht
-        obj._error = "No longer in GeODin database"
+        obj._error = "No longer in GeoDin database"
         obj._isUsed = True
         obj.log.log(gqc._LOG_TRACE, "%s (Desc %s)...", cls.__name__, obj.UID)
         return obj
@@ -446,7 +532,8 @@ class GoQuery(GoBaseClass):
     def __members(self):
         # seeaslo: https://stackoverflow.com/questions/45164691/recommended-way-to-implement-eq-and-hash
         prps = (self._DbRef, self._PrjID, self._Kind, self._Desc)
-        if self._Kind in ('GxQryINV', 'GxQryLOC'):
+##        if self._Kind in ('GxQryINV', 'GxQryLOC'):
+        if self._Kind in self._NamedKinds:
             prps = (self._DbRef, self._PrjID, self._Kind, self._Name)
         return prps
 

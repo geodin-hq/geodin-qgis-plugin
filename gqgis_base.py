@@ -25,6 +25,12 @@ class GQgisException(Exception):
             txt = self.__class__.__name__
         else:
             txt = self.args[0]
+            # 10/2026: message (format string) translated in context 'GQgisException'
+            try:
+                if isinstance(txt, str):
+                    txt = res.translate("GQgisException", txt)
+            except Exception:
+                pass
             if len(self.args) > 1:
                 txt = txt % self.args[1:]
         return txt
@@ -124,6 +130,12 @@ class GxGComException(GxGComError):
     """is raised in case of a GeODin COM Exception
 
     30.05.2023 j.ebert
+    """
+
+class GxGAppBusyError(GxGComError):
+    """is raised if GeoDin is busy (modal dialog open or a method that cannot be left) (10/2026)
+
+    The COM call is not executed (modal dialog) or was refused by GeoDin.
     """
 
 class GxGComResError(GxGComError):

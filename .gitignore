@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.zip
+HANDOFF_*.md
+backup_png_icons/
+tools/
