@@ -21,6 +21,7 @@ Registration needs administrator rights (UAC prompt):
 Network drives: mapped drive letters (e.g. I:) are not available in a process that runs with
 administrator rights, so paths on mapped drives are converted to UNC paths (\\server\share\...).
 """
+import contextlib
 import logging
 import os
 import re
@@ -208,15 +209,13 @@ class GxComReg:
         Mapped drive letters are not available in a process with administrator rights.
         """
         path = str(path)
-        try:
+        if re.match(r'^[A-Za-z]:', path):
+            import pywintypes
             import win32wnet
-            if re.match(r'^[A-Za-z]:', path):
+            with contextlib.suppress(pywintypes.error):
                 remote = win32wnet.WNetGetConnection(path[:2])
                 if remote:
                     return remote.rstrip('\\') + path[2:]
-        except Exception:
-            # not a network drive (or win32wnet not available)
-            pass
         return path
 
     @classmethod

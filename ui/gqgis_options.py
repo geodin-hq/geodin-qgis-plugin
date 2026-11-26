@@ -169,16 +169,12 @@ def warnMethodFailed(tool, exc, logger=None):
     mode = afterSelectionMode(tool)
     msg = exc.msg() if hasattr(exc, "msg") else str(exc)
     logger.warning("GeoDin method '%s' failed: %s", mode, msg, exc_info=True)
-    try:
-        import qgis.utils
-        pushMessage(
-            "%s (%s): %s" % (
-                _trans("The GeoDin function could not be executed"),
-                res.translate("GQgis_Act", MODE_TEXT.get(mode, mode)), msg
-            ), "warning", 10
-        )
-    except Exception:
-        pass
+    pushMessage(
+        "%s (%s): %s" % (
+            _trans("The GeoDin function could not be executed"),
+            res.translate("GQgis_Act", MODE_TEXT.get(mode, mode)), msg
+        ), "warning", 10
+    )
 
 
 def runAfterSelection(tool=TOOL_SELECTION, logger=None):
@@ -196,16 +192,5 @@ def runAfterSelection(tool=TOOL_SELECTION, logger=None):
         gx.gApp.executeMethod(methodID, prms)
         return True
     except Exception as exc:
-        msg = exc.msg() if hasattr(exc, "msg") else str(exc)
-        logger.warning("GeoDin method '%s' (%d) failed: %s", mode, methodID, msg, exc_info=True)
-        try:
-            import qgis.utils
-            pushMessage(
-                "%s (%s): %s" % (
-                    _trans("The GeoDin function could not be executed"),
-                    res.translate("GQgis_Act", MODE_TEXT[mode]), msg
-                ), "warning", 10
-            )
-        except Exception:
-            pass
+        warnMethodFailed(tool, exc, logger)
     return False

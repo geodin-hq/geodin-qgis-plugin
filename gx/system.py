@@ -7,6 +7,7 @@ Classes:
 """
 
 import datetime
+import contextlib
 import json
 import logging
 import os
@@ -70,11 +71,9 @@ class GxReg:
         else:
             regKey = cls.key(*keyname)
         regVal = default
-        try:
+        with contextlib.suppress(OSError):
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, regKey, 0, winreg.KEY_READ) as regKey:
                 regVal, type_id = winreg.QueryValueEx(regKey, valname)
-        except:
-            pass
         return regVal
 
     @classmethod
@@ -417,7 +416,7 @@ class GxReg:
                 strInfo[propName] = win32api.GetFileVersionInfo(fname, strInfoPath)
 
             props['StringFileInfo'] = strInfo
-        except:
+        except win32api.error:
             pass
 
         return props

@@ -1,3 +1,9 @@
+# Version __4.0.2.2648__ (11/2026)
+
+* Changes
+  * Bandit configuration (.bandit) for the security scan of plugins.qgis.org
+  * no silently ignored errors: expected cases are checked or caught by type, others are logged
+
 # Version __4.0.1.2648__ (11/2026)
 
 * Bug fixing

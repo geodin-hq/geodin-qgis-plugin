@@ -13,6 +13,7 @@ _product = 'GeODinQGIS'
 _py_file = __file__
 
 import json
+import contextlib
 import logging
 import logging.config
 import logging.handlers
@@ -230,11 +231,8 @@ class LogConfigurator:
                     for prm_name, val in prms.items():
                         if prm_name.lower() == 'filename':
                             # {.., 'handlers': {<hdl_name>: {.., 'filename': <val>, ..}}, ..}, ..}
-                            try:
-                                log_file = Path(val)
-                                log_file.parent.mkdir(parents=True, exist_ok=True)
-                            except:
-                                pass
+                            with contextlib.suppress(OSError):
+                                Path(val).parent.mkdir(parents=True, exist_ok=True)
         return
     @classmethod
     def config(cls):

@@ -330,21 +330,12 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget, _GQgis_ModeMe
         self.mapTool.setLayer(self.GoLyr)
         self.setChecked(True)
         self.canvas.setMapTool(self.mapTool)
-        try:
-            # qgis.utils.iface.messageBar().pushInfo(
-            #     "GeoDinQGIS",
-            #     self.trans("Select objects in layer '%s' (rectangle or click, Shift adds): %s")
-            #     % (self.GoLyrText, self.trans(_modeText(self._currentMode())))
-            # )
-            # 10/2026: short text with word wrap (was cut off in a small QGIS window)
-            from GeODinQGIS.ui.gqgis_options import pushMessage
-            pushMessage(
-                self.trans("Select objects (rectangle or click, Shift adds): %s")
-                % self.trans(_modeText(self._currentMode())),
-                tooltip=self.GoLyrText
-            )
-        except Exception:
-            pass
+        from GeODinQGIS.ui.gqgis_options import pushMessage
+        pushMessage(
+            self.trans("Select objects (rectangle or click, Shift adds): %s")
+            % self.trans(_modeText(self._currentMode())),
+            tooltip=self.GoLyrText
+        )
         return
 
     def _currentMode(self):
@@ -358,15 +349,12 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget, _GQgis_ModeMe
         else:
             # 11/2026: no feature of the GeoDin layer hit (e.g. click beside the symbol or on
             #   a feature of another layer) - before nothing happened without a notice
-            try:
-                from GeODinQGIS.ui.gqgis_options import pushMessage
-                pushMessage(
-                    self.trans("No object of the GeoDin layer '%s' found at this place.")
-                    % self.GoLyrText,
-                    level="warning"
-                )
-            except Exception:
-                pass
+            from GeODinQGIS.ui.gqgis_options import pushMessage
+            pushMessage(
+                self.trans("No object of the GeoDin layer '%s' found at this place.")
+                % self.GoLyrText,
+                level="warning"
+            )
         return
 
     def executeMode(self, mode):
@@ -385,14 +373,11 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget, _GQgis_ModeMe
         if self.isEnabled() and self.GoLyr is not None and self.GoLyr.selectedFeatureCount() > 0:
             self.execute()
         else:
-            try:
-                from GeODinQGIS.ui.gqgis_options import pushMessage
-                pushMessage(
-                    self.trans("%s - select features in the GeoDin layer and click the button.")
-                    % self.trans(_modeText(mode))
-                )
-            except Exception:
-                pass
+            from GeODinQGIS.ui.gqgis_options import pushMessage
+            pushMessage(
+                self.trans("%s - select features in the GeoDin layer and click the button.")
+                % self.trans(_modeText(mode))
+            )
         return
 
     def updateUi(
@@ -460,12 +445,9 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget, _GQgis_ModeMe
         cbo = self.cboLayers()
         project = qgis.core.QgsProject.instance()
         candidates = []
-        try:
-            active = qgis.utils.iface.activeLayer()
-            if active is not None:
-                candidates.append(active.id())
-        except Exception:
-            pass
+        active = qgis.utils.iface.activeLayer()
+        if active is not None:
+            candidates.append(active.id())
         candidates += [cbo.itemData(i) for i in range(cbo.count())]
         for lyrId in candidates:
             idx = cbo.findData(lyrId)

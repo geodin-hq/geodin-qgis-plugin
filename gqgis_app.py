@@ -721,7 +721,7 @@ def _bringGeoDinToFront():
                 win32api.CloseHandle(hProc)
             if os.path.basename(exe).lower() == "geodin.exe":
                 found.append(hwnd)
-        except Exception:
+        except win32api.error:
             pass
         return True
 

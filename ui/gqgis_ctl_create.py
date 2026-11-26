@@ -36,6 +36,7 @@ from GeODinQGIS import app
 import GeODinQGIS.gx as gx
 import qgis.core
 import qgis.gui
+from qgis.PyQt import sip
 
 from GeODinQGIS.ui.gqgis_ctl_tools_v2332 import GQgis_Cbo_Layers, _goLyrExcText
 
@@ -103,20 +104,11 @@ class GQgis_Act_ToolCreateObject(QtWidgets.QAction, GQgis_Bas_Widget):
             return
         self.setChecked(True)
         self.canvas.setMapTool(self.mapTool)
-        try:
-            # qgis.utils.iface.messageBar().pushInfo(
-            #     "GeoDinQGIS",
-            #     self.trans("Click in the map where the new object is to be created (layer '%s').")
-            #     % self.cboLayers().GoLyrText
-            # )
-            # 10/2026: short text with word wrap (was cut off in a small QGIS window)
-            from GeODinQGIS.ui.gqgis_options import pushMessage
-            pushMessage(
-                self.trans("Click in the map where the new object is to be created."),
-                tooltip=self.cboLayers().GoLyrText
-            )
-        except Exception:
-            pass
+        from GeODinQGIS.ui.gqgis_options import pushMessage
+        pushMessage(
+            self.trans("Click in the map where the new object is to be created."),
+            tooltip=self.cboLayers().GoLyrText
+        )
 
     def onPointClicked(self, point):
         """point (QgsPointXY, canvas CRS) -> GeoDin 'Create object'"""
@@ -191,10 +183,8 @@ class GQgis_Act_ToolCreateObject(QtWidgets.QAction, GQgis_Bas_Widget):
         """exports the query again and reloads the layer (as 'Update layer(s)' in the Explorer)"""
         from GeODinQGIS.ui.gqgis_ctl_tools_v2332 import updateGoLayerData
         if updateGoLayerData(qry, lyr, self.log, self._parent, self.text()) and widget is not None:
-            try:
+            if not sip.isdeleted(widget):
                 qgis.utils.iface.messageBar().popWidget(widget)
-            except Exception:
-                pass
 
 
 def _layerEpsg(lyr):
@@ -206,14 +196,11 @@ def _layerEpsg(lyr):
     authid = lyr.crs().authid() if lyr.crs().isValid() else ""
     if authid.upper().startswith("EPSG:"):
         return authid.split(":", 1)[1]
-    try:
-        if "EPSG" in [fld.name() for fld in lyr.fields()]:
-            from collections import Counter
-            values = Counter(str(f["EPSG"]) for f in lyr.getFeatures() if f["EPSG"] not in (None, ""))
-            if values:
-                return values.most_common(1)[0][0]
-    except Exception:
-        pass
+    if lyr.fields().indexOf("EPSG") >= 0:
+        from collections import Counter
+        values = Counter(str(f["EPSG"]) for f in lyr.getFeatures() if f["EPSG"] not in (None, ""))
+        if values:
+            return values.most_common(1)[0][0]
     return ""
 
 

@@ -6,6 +6,7 @@ Classes:
 06.03.2023 j.ebert
 """
 
+import contextlib
 import datetime
 import json
 import logging
@@ -19,11 +20,11 @@ from pathlib import Path
 
 try:
     import psycopg2
-except:
+except ImportError:
     pass
 try:
     import pyodbc
-except:
+except ImportError:
     pass
 
 import GeODinQGIS.gqgis_base as gqb
@@ -77,7 +78,7 @@ def _geodinWindows():
                     win32api.CloseHandle(hProc)
             if exes[pid] == "geodin.exe":
                 found.append((hwnd, win32gui.GetWindowText(hwnd), bool(win32gui.IsWindowEnabled(hwnd))))
-        except Exception:
+        except win32api.error:
             pass
         return True
 
@@ -110,11 +111,9 @@ def bringGeoDinDialogToFront():
             if win32gui.IsIconic(hwnd):
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
             win32gui.SetForegroundWindow(hwnd)
-        except Exception:
-            try:
+        except win32gui.error:
+            with contextlib.suppress(win32gui.error):
                 win32gui.FlashWindow(hwnd, True)
-            except Exception:
-                pass
     return bool(wins)
 
 

@@ -151,14 +151,9 @@ class GQgis_Dlg_NoMailProgram(QtWidgets.QDialog):
 
     @staticmethod
     def _copyIcon():
-        try:
-            from qgis.core import QgsApplication
-            icon = QgsApplication.getThemeIcon("mActionEditCopy.svg")
-            if not icon.isNull():
-                return icon
-        except Exception:
-            pass
-        return None
+        from qgis.core import QgsApplication
+        icon = QgsApplication.getThemeIcon("mActionEditCopy.svg")
+        return None if icon.isNull() else icon
 
     def _addCopyRow(self, grid, row, text):
         edit = QtWidgets.QLineEdit(text)
@@ -216,23 +211,15 @@ def _comState(app):
 
 def _summary(app, comText):
     """short system summary for the e-mail text"""
-    rows = []
-    try:
-        rows.append("GeoDinQGIS: %s" % app.Version)
-    except Exception:
-        pass
-    try:
-        from qgis.core import Qgis
-        rows.append("QGIS: %s" % Qgis.QGIS_VERSION)
-    except Exception:
-        pass
+    from qgis.core import Qgis
+    rows = [
+        "GeoDinQGIS: %s" % app.Version,
+        "QGIS: %s" % Qgis.QGIS_VERSION,
+    ]
     rows.append("Qt: %s, Python: %s" % (QtCore.QT_VERSION_STR, platform.python_version()))
     rows.append("Windows: %s" % platform.platform())
     rows.append("GeoDin COM server: %s" % comText)
-    try:
-        rows.append("DDX: %s" % (app.DDXFile or "-"))
-    except Exception:
-        pass
+    rows.append("DDX: %s" % (app.DDXFile or "-"))
     rows.append("Language: %s (%s)" % (res.LanguageCode, getattr(res, 'LanguageMode', '')))
     return "\n".join(rows)
 
@@ -450,11 +437,7 @@ def createSupportMail(parent=None):
     10/2026
     """
     from GeODinQGIS import app
-    ddxFile = ""
-    try:
-        ddxFile = str(app.DDXFile or "")
-    except Exception:
-        pass
+    ddxFile = str(app.DDXFile or "")
     dlg = GQgis_Dlg_Support(parent, ddxFile, _iniFile(app))
     if dlg.exec() != QtWidgets.QDialog.DialogCode.Accepted:
         return
@@ -463,11 +446,7 @@ def createSupportMail(parent=None):
             zipFile, contents, comText = _createZip(app, dlg.options())
             to = gqc.SUPPORT_MAIL_TO
             cc = gqc.SUPPORT_MAIL_CC if env.isFugroDE() else ""
-            subject = "GeoDinQGIS Support"
-            try:
-                subject += " (GeoDinQGIS %s)" % app.Version
-            except Exception:
-                pass
+            subject = "GeoDinQGIS Support (GeoDinQGIS %s)" % app.Version
             body = _mailBody(app, zipFile, contents, comText)
         state = _sendOutlook(parent, to, cc, subject, body, zipFile)
         if state != 'ok':

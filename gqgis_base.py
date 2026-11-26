@@ -9,6 +9,8 @@
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
 
+import logging
+
 from GeODinQGIS.fw import (
     env,
     res
@@ -30,7 +32,7 @@ class GQgisException(Exception):
                 if isinstance(txt, str):
                     txt = res.translate("GQgisException", txt)
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("message not translated: %s", txt, exc_info=True)
             if len(self.args) > 1:
                 txt = txt % self.args[1:]
         return txt

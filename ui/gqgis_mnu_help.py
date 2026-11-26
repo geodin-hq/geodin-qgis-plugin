@@ -164,12 +164,8 @@ class GQgis_Mnu_Help(QtWidgets.QMenu, GQgis_Bas_Widget):
 
         10/2026
         """
-        icon = QtGui.QIcon()
-        try:
-            from qgis.core import QgsApplication
-            icon = QgsApplication.getThemeIcon("propertyicons/symbology.svg")
-        except Exception:
-            pass
+        from qgis.core import QgsApplication
+        icon = QgsApplication.getThemeIcon("propertyicons/symbology.svg")
         action = QtWidgets.QAction(icon, "Layer styles...", self._parent)
         action.setObjectName("action_Styles")
         action.triggered.connect(self.execActionStyles)
@@ -196,12 +192,8 @@ class GQgis_Mnu_Help(QtWidgets.QMenu, GQgis_Bas_Widget):
 
     def _initActionSelectionRadius(self):
         """ returns QAction to set the selection radius of the selection tool (11/2026)"""
-        icon = QtGui.QIcon()
-        try:
-            from qgis.core import QgsApplication
-            icon = QgsApplication.getThemeIcon("mActionSelectRectangle.svg")
-        except Exception:
-            pass
+        from qgis.core import QgsApplication
+        icon = QgsApplication.getThemeIcon("mActionSelectRectangle.svg")
         action = QtWidgets.QAction(icon, "Selection radius...", self._parent)
         action.setObjectName("action_SelectionRadius")
         action.triggered.connect(self.execActionSelectionRadius)

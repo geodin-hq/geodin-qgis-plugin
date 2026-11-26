@@ -8,6 +8,7 @@ Classes:
 
 09.09.2022 J.Ebert
 """
+import contextlib
 import json
 import logging
 from pathlib import Path
@@ -18,12 +19,10 @@ from .fg_env import Config
 DEFAULT_LANGUAGE = ''
 """default langauge code for selecting the resource file"""
 # use language of operating system, if possible
-try:
+with contextlib.suppress(ImportError, KeyError):
     from ctypes import windll
     from locale import windows_locale
     DEFAULT_LANGUAGE = windows_locale[windll.kernel32.GetUserDefaultUILanguage()].split('_')[0]
-except:
-    pass
 
 AUTO_LANGUAGE = 'auto'
 """10/2026: language setting 'auto' - use the language of the QGIS user interface"""
