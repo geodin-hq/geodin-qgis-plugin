@@ -4,7 +4,13 @@ Classes:
 
 17.04.2023 j.ebert
 """
-from GeODinQGIS.dm.bas import *
+import GeODinQGIS.gqgis_config as gqc
+import json
+from pathlib import Path
+from GeODinQGIS.dm.bas import (
+    _JSON_DUMP_IDENT,
+    GoBaseClass,
+)
 
 class GoLnkADC(GoBaseClass):
     """Data Model Base Class
@@ -140,7 +146,7 @@ class GoLnkADC(GoBaseClass):
         json_dct,               # JSON-Objekt (dict)
         dbRef=None              # Verweis auf GxDatabase-Objekt
         ):
-        raise NotImplementedError(f"{self.__class__.__name__}.from_json is not implemented")
+        raise NotImplementedError(f"{cls.__name__}.from_json is not implemented")
         return
 
     def dumps(self):

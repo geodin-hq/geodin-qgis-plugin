@@ -8,13 +8,9 @@ Classes:
 """
 CONTEXT_RES = "GQgis_Mnu_Help"
 """context for resource translation of QWidgets"""
-import datetime
 import logging
 import logging.handlers
-import webbrowser
-import zipfile
 
-from pathlib import Path
 
 from qgis.PyQt import (
     QtCore,

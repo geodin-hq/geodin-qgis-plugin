@@ -23,9 +23,8 @@ import GeODinQGIS.gqgis_config as gqc
 import GeODinQGIS.dm as dm
 import GeODinQGIS.gx as gx
 from GeODinQGIS.ui.gqgis_bas import (
-    cursor,
     plugin,
-    GQgis_MsgBox as MsgBox
+    GQgis_MsgBox as MsgBox,
 )
 
 from GeODinQGIS import res
@@ -487,7 +486,7 @@ class GoNode(QtWidgets.QTreeWidgetItem):
             (qgsLayer.dataProvider().storageType() == 'GeoJSON')
         ):
             try:
-                statinfo = os.stat(qgsLayer.source().split('|')[0])
+                os.stat(qgsLayer.source().split('|')[0])
                 # -> Die WindowsPath-Syntax ist richitg und die Layer Source existiert
                 # -> Der QgsVectorLayer kann ein GoLayer sein.
                 val = True
@@ -496,7 +495,7 @@ class GoNode(QtWidgets.QTreeWidgetItem):
                 # -> Die WindowsPath-Syntax ist richitg, aber die Layer Source existiert nicht
                 # -> Der QgsVectorLayer kann ein GoLayer sein.
                 val = True
-            except:
+            except Exception:
                 # OSError: [WinError 123] Die Syntax für den Dateinamen, Verzeichnisnamen oder die Datenträgerbezeichnung ist falsch:
                 # -> Die WindowsPath-Syntax ist falsch!
                 # -> Der QgsVectorLayer kann kein GoLayer sein.

@@ -33,7 +33,7 @@ class LogConfigurator:
         19.08.2022 J.Ebert
         """
         # Log folder (vom Typ pathlib.Path)
-        log_folder = cls.log_folder()
+        cls.log_folder()
         # default logging coniguration
         log_config = {
             'version':1,
@@ -83,7 +83,7 @@ class LogConfigurator:
             with open(cfg_file, 'rt') as f:
                 dictConfig = json.load(f)
             print(str(cls.cfg_folder() / 'logging.json'))
-        except:
+        except Exception:
             # Wenn das Laden eine Exception verursacht hat,
             # dann das Default JSON-File aus dem AppFolder laden
             cfg_file = cls.app_folder() / 'config' / 'logging.json'
@@ -143,7 +143,7 @@ class LogConfigurator:
         19.08.2022 J.Ebert
         """
         # Mit der Umgebungsvariable <Product>_CONFIG_DIR kann
-		# der default Config Folder <App Folder>/config übersteuert werden.
+        # der default Config Folder <App Folder>/config übersteuert werden.
         config_dir = os.getenv(f"{_product.upper()}_CONFIG_DIR", str(cls.app_folder() / 'config'))
         print(f"{_product.upper()}_CONFIG_DIR", config_dir)
         return Path(config_dir)
@@ -382,4 +382,4 @@ def zipLogFiles(
 if __name__ == '__main__':
     import sys
     sys.path.append(Path(__file__).parents[0])
-    import fg_logging
+    import fg_logging  # noqa: F401 - availability check

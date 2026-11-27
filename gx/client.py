@@ -11,13 +11,18 @@ import logging
 import os
 import re
 
-from .geodin import *
+import datetime
+from .geodin import (
+    GxCOM,
+    GxReg,
+    GxSQL,
+    GxSys,
+)
 from .gxdbcnn import (
     GxDbConnection
 )
 import GeODinQGIS.gqgis_base as gqb
 import GeODinQGIS.gqgis_config as gqc
-from GeODinQGIS import res
 
 
 class GxBaseClient:
@@ -286,7 +291,7 @@ class GxCOMClient(GxBaseCOMClient):
                 res.append(['%GEODINROOT', progData])
             else:
                 self.log.error("Load ProgramDataFolder failed\n\tExcVal %s: '%s'", excVal, progData)
-        except Exception as exc:
+        except Exception:
             self.log.error("Load ProgramDataFolder failed", exc_info=True)
         return res
 
@@ -332,7 +337,7 @@ class GxCOMClient(GxBaseCOMClient):
                 prms['RefName'] = refName
             prms['MethodID'] = methodID
             prms['MethodParams'] = methodPrms
-            res = self._gApp._gCOM_CreateObjectSelection(prms)
+            self._gApp._gCOM_CreateObjectSelection(prms)
         except gqb.GxException:
             raise
         except Exception:
@@ -372,7 +377,7 @@ class GxCOMClient(GxBaseCOMClient):
                 )
             prms['MethodID'] = methodID
             prms['MethodParams'] = methodPrms
-            res = self._gApp._gCOM_CreateObjectSelection(prms)
+            self._gApp._gCOM_CreateObjectSelection(prms)
         except gqb.GxException:
             raise
         except Exception:
@@ -439,7 +444,7 @@ class GxCOMClient(GxBaseCOMClient):
     ):
         self.log.log(gqc._LOG_TRACE,"")
         try:
-            res = self._gApp._gCOM_exportFeatureCollection(filename)
+            self._gApp._gCOM_exportFeatureCollection(filename)
         except gqb.GxException:
             raise
         except Exception:
@@ -478,11 +483,10 @@ class GxCOMClient(GxBaseCOMClient):
                 prms['Query'] = goQry._GOMLabel
             txt = '[Params]\n%s' % "\n".join(["%s=%s" % (key, val) for key, val in prms.items()])
             try:
-                res = self._gApp._gCOM_SelectObject(txt)
+                self._gApp._gCOM_SelectObject(txt)
             except gqb.GxGComException as firstExc:
                 if not query:
                     raise
-                res = None
                 for name in candidates:
                     if name == prms.get('Query'):
                         continue
@@ -490,7 +494,7 @@ class GxCOMClient(GxBaseCOMClient):
                     tryPrms = dict(prms, Query=name)
                     txt = '[Params]\n%s' % "\n".join(["%s=%s" % (key, val) for key, val in tryPrms.items()])
                     try:
-                        res = self._gApp._gCOM_SelectObject(txt)
+                        self._gApp._gCOM_SelectObject(txt)
                     except gqb.GxGAppBusyError:
                         raise
                     except gqb.GxGComException:
@@ -577,7 +581,7 @@ class GxCOMClient(GxBaseCOMClient):
             self.log.debug(
                 json.dumps(prps, indent=4).replace("\n", "\n\t")
             )
-        except:
+        except Exception:
             self.log.error(
                 "Error extracting DBConnection\n\t%s",
                 str(settings),

@@ -25,13 +25,17 @@ MethodParams (GeoDin source Methods/meth_locationcreate.pas AssignStartParams):
     EPSG=<EPSG code of the layer CRS>      (field 'Koordinatensystem', 10/2026)
 """
 import logging
-import tempfile
-from pathlib import Path
 
 CONTEXT_RES = "GQgis_Act"
 """context for resource translation of QWidgets"""
 
-from GeODinQGIS.ui.gqgis_bas import *
+import GeODinQGIS.gqgis_base as gqb
+from GeODinQGIS import res
+from qgis.PyQt import QtCore, QtGui, QtWidgets
+from GeODinQGIS.ui.gqgis_bas import (
+    GQgis_Bas_Widget,
+    GQgis_MsgBox,
+)
 from GeODinQGIS import app
 import GeODinQGIS.gx as gx
 import qgis.core
@@ -161,7 +165,6 @@ class GQgis_Act_ToolCreateObject(QtWidgets.QAction, GQgis_Bas_Widget):
 
     def _pushUpdateMessage(self, qry, lyr):
         """message bar with the button 'Update layer' (GeoDin dialog runs asynchronously)"""
-        bar = qgis.utils.iface.messageBar()
         # widget = bar.createMessage(
         #     "GeoDinQGIS",
         #     # self.trans("Complete the dialog 'Create object' in GeoDin, then update the layer.")

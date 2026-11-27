@@ -20,18 +20,18 @@ classes:
 ##
 ##from GeODinQGIS import res
 
-from .gqgis_act import (
+from .gqgis_act import (  # noqa: F401 - re-export
     GQgis_Act_Connect,
     GQgis_Act_MsgBox,
     GQgis_Act_Refresh
 )
-from .gqgis_ctl_tools_v2332 import (
+from .gqgis_ctl_tools_v2332 import (  # noqa: F401 - re-export
     GQgis_Cbo_Layers,
     GQgis_Act_LayersReload,
     GQgis_Act_ToolHotlink,
     GQgis_Act_ToolSelection
 )
-from .gqgis_ctl_create import GQgis_Act_ToolCreateObject     # 10/2026
-from .gqgis_dlg_ddx import GQgis_Act_DDX
-from .gqgis_frm_gcat import GQgis_Frm_GCat
-from .gqgis_mnu_help import GQgis_TBtn_Help
+from .gqgis_ctl_create import GQgis_Act_ToolCreateObject     # 10/2026  # noqa: F401 - re-export
+from .gqgis_dlg_ddx import GQgis_Act_DDX  # noqa: F401 - re-export
+from .gqgis_frm_gcat import GQgis_Frm_GCat  # noqa: F401 - re-export
+from .gqgis_mnu_help import GQgis_TBtn_Help  # noqa: F401 - re-export

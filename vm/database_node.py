@@ -16,7 +16,6 @@ from qgis.PyQt import (
 
 import GeODinQGIS.gqgis_base as gqb
 import GeODinQGIS.gqgis_config as gqc
-import GeODinQGIS.gx as gx
 import GeODinQGIS.vm.bas_node as bas
 import GeODinQGIS.vm.group_node as vm_grps
 
@@ -83,15 +82,15 @@ class GoNodeDatabase(bas.GoNode):
                     self.DbRef.Name, json.dumps(logRows, indent=4).replace("\n", "\n\t")
                 )
             for prj in prjs:
-                nodePrj = vm_grps.GoNodeProject(self, prj)
-            nodeGrpLOC = vm_grps.GoNodeGrpLOC(self, self._tag)
-            nodeGrpINV = vm_grps.GoNodeGrpINV(self, self._tag)
+                vm_grps.GoNodeProject(self, prj)
+            vm_grps.GoNodeGrpLOC(self, self._tag)
+            vm_grps.GoNodeGrpINV(self, self._tag)
             if self._tag.hasADCDATA():
-                nodeGrpADC = vm_grps.GoNodeGrpADC(self, self._tag)
+                vm_grps.GoNodeGrpADC(self, self._tag)
         else:
-            nodeGrpLOC = vm_grps.GoNodeGrpLOC(self, None)
-            nodeGrpINV = vm_grps.GoNodeGrpINV(self, None)
-            nodeGrpADC = vm_grps.GoNodeGrpADC(self, None)
+            vm_grps.GoNodeGrpLOC(self, None)
+            vm_grps.GoNodeGrpINV(self, None)
+            vm_grps.GoNodeGrpADC(self, None)
         return
 
     def onContextMenu(self):

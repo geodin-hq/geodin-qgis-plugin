@@ -7,17 +7,13 @@ Functions:
 
 17.04.2023 j.ebert
 """
-import datetime
-import hashlib
 import json
 import logging
 import os
 import time
 import traceback
-from pathlib import Path
 
 import GeODinQGIS.gqgis_config as gqc
-import GeODinQGIS.gx as gx
 from GeODinQGIS import res
 
 

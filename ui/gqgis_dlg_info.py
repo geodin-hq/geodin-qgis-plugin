@@ -10,10 +10,7 @@ import logging
 
 from qgis.PyQt import QtWidgets
 
-from GeODinQGIS import (
-    app,
-    res
-    )
+from GeODinQGIS import app
 from GeODinQGIS.ui.gqgis_bas import GQgis_Bas_Widget
 from GeODinQGIS.ui.ui_gqgis_dlg_info import Ui_GQgis_Dlg_Info
 
@@ -43,7 +40,7 @@ class GQgis_Dlg_Info(QtWidgets.QDialog, GQgis_Bas_Widget):
         try:
             self.setWindowTitle(self.trans("About GeoDinQGIS"))  # 10/2026, before: "GeoDinQGIS - About"
             self.ui.labelAbout.setText(self.trans("GeoDinQGIS   %s") % app.Version)
-        except:
+        except Exception:
 ##            self.log.error(self.ui.__dir__())
             self.log.error("", exc_info=True)
         return

@@ -23,9 +23,8 @@ import GeODinQGIS.gqgis_base as gqb
 
 from GeODinQGIS import (
     app,
-    env,
-    res
-    )
+    res,
+)
 from GeODinQGIS.ui.gqgis_bas import (
     GQgis_Bas_Widget,
     GQgis_MsgBox as MsgBox
@@ -269,7 +268,7 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
             # 10/2026: combo box with the recently used DDX files
             self._cboFile.setToolTip(self.trans("Recently used DDX files, open another or create a new DDX file"))
             self._fillCboFile()
-        except:
+        except Exception:
             self.log.error("", exc_info=True)
         return
 
@@ -375,7 +374,7 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
                 except OSError:
                     self.log.error("OS error with GeoDin file '%s'", ddx_Conf, exc_info=True)
                     prm_ToolTip = (self._ERROR, self.trans("OS error with GeoDin file!"))
-                except:
+                except Exception:
                     self.log.error(
                         "Unkown error with data folder '%s'", ddx_Conf,
                         exc_info=True
@@ -440,7 +439,7 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
                 except OSError:
                     self.log.error("OS error with data folder '%s'", ddx_Data, exc_info=True)
                     prm_ToolTip = (self._ERROR, self.trans("OS error with data folder!"))
-                except:
+                except Exception:
                     self.log.error(
                         "Unkown error with data folder '%s'", ddx_Data,
                         exc_info=True
@@ -479,7 +478,6 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
             # Wenn Attr. __oldFile und Prm File NICHT identisch sind, also
             # Wenn der Prm File noch nicht validiert wurde...
             self._DDX = None
-            ddx_File = self.ui.lineEdit_File.text()
             ddx_Path = None
             ddx_Save = True
             ddx_Data = ""
@@ -516,7 +514,7 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
                 except gqb.GxFileError as exc:
                     self.log.info(exc.msg())
                     prm_ToolTip = (self._ERROR, exc.msg())
-                except:
+                except Exception:
                     self.log.error(
                         "Unkown error with DDX file '%s'", str(self.ui.lineEdit_File.text()),
                         exc_info=True
@@ -825,7 +823,7 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
             self._DDX.save()
             # Save-Button und DialogButtonbox aktualisieren
             self.validateUi()
-        except:
+        except Exception:
             self.log.error("Unknown error", exc_info=True)
             raise
         return
@@ -878,7 +876,7 @@ class GQgis_Dlg_DDX(QtWidgets.QDialog, GQgis_Bas_Widget):
         # Vorbedingung, wenn bereits ein DDX File gesetzt ist
         if app.DDXFile:
             try:
-                newDDX = GxDDX.open(app.DDXFile)
+                GxDDX.open(app.DDXFile)
             except gqb.GxFileError as exc:
                 MsgBox.error(parent, 'DataDictionary', exc.msg())
         # DDX-Dialog öffnen/ausführen...

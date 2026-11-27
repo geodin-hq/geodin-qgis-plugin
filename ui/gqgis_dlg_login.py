@@ -7,14 +7,12 @@ Classes:
 CONTEXT_RES = "GQgis_Dlg_Login"
 """context for resource translation of QWidgets"""
 import logging
-from pathlib import Path
 
 from qgis.PyQt import (
     QtWidgets
     )
 
 import GeODinQGIS.gqgis_config as gqc
-import GeODinQGIS.gqgis_base as gqb
 
 from GeODinQGIS import (
     res
@@ -50,7 +48,7 @@ class GQgis_Dlg_Login(QtWidgets.QDialog, GQgis_Bas_Widget):
             self.ui.dbNameLabel.setText(self.trans("Database:"))
             self.ui.dbUserLabel.setText(self.trans("Username:"))
             self.ui.dbPasswordLabel.setText(self.trans("Password:"))
-        except:
+        except Exception:
             self.log.error("", exc_info=True)
         return
 

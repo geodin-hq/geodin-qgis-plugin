@@ -21,7 +21,7 @@
  ***************************************************************************/
  This script initializes the plugin, making it known to QGIS.
 """
-__version__ = '4.1.0.2648'   # 10/2026 (before: '3.0.22xx'), the plugin version is in metadata.txt
+__version__ = '4.1.1.2648'   # 10/2026 (before: '3.0.22xx'), the plugin version is in metadata.txt
 __license__ = 'GPL-2.0-or-later'
 __maintainer_email__ = 'support@geodin.com'
 __url__ = 'www.geodin.com'
@@ -45,21 +45,21 @@ def _missing_requirement():
 _MISSING_REQUIREMENT = _missing_requirement()
 
 if _MISSING_REQUIREMENT is None:
-    from pathlib import Path
+    from pathlib import Path  # noqa: F401 - re-export
     # Achtung, Reihenfolge beachten!!!
     #   1a) fw.fg_env und fw.fg_res importieren
     #   1b) globals env und res instanziieren
     #   2a) gqgis_app importieren
     #   2b) globlas app instanziieren
-    from GeODinQGIS.fw.fg_logging import (
+    from GeODinQGIS.fw.fg_logging import (  # noqa: F401 - re-export
         LogFormatterTrace
     )
-    from GeODinQGIS.gqgis_config import (
+    from GeODinQGIS.gqgis_config import (  # noqa: F401 - re-export
         LogFilterCOM,
         LogFilterSQL,
         LogFilterTRACE
     )
-    from .fw import (
+    from .fw import (  # noqa: F401 - re-export
         env,
         res
     )

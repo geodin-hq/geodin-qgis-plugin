@@ -123,14 +123,6 @@ class Res(object):
         """language setting: 'auto' (QGIS UI language) or the chosen language code (10/2026)"""
         return self.__LanguageMode
 
-    def _loadLanguageDict(self):
-        """ loads the translation dictionary of the language
-
-        01.09.2022 J.Ebert
-        """
-        self.log.debug(str(self.ResFile))
-        return self._loadDictionary(str(self.ResFile))
-
     def _loadDictionary(
         self,
         filename
@@ -160,7 +152,7 @@ class Res(object):
             outObj = json.loads( "".join(rows))
         except FileNotFoundError:
             self.log.warning("No such resource file: '%s'", str(filename))
-        except:
+        except Exception:
             self.log.critical("", exc_info=True)
         return outObj
 
@@ -322,7 +314,7 @@ static PySide2.QtCore.QCoreApplication.translate(context, key[, disambiguation=N
         self.log.debug("Context::Key   %s::%s", context, key)
         try:
             key = self.__LanguageDict.get(context,{}).get(key, key)
-        except:
+        except Exception:
             self.log.critical("Major disaster...", exc_info=True)
         return key
 
@@ -343,7 +335,7 @@ static PySide2.QtCore.QCoreApplication.translate(context, key[, disambiguation=N
                     self.log.debug("Context::Key   %s::%s", context, key)
             if args:
                 val = val % args
-        except:
+        except Exception:
             self.log.critical("Major disaster...", exc_info=True)
         return val
 
@@ -358,7 +350,7 @@ static PySide2.QtCore.QCoreApplication.translate(context, key[, disambiguation=N
             key = self.__LanguageDict.get(context,{}).get(key, key)
             if args:
                 key = key % args
-        except:
+        except Exception:
             self.log.critical("Major disaster...", exc_info=True)
         return key
 
@@ -368,7 +360,7 @@ def main():
 if __name__ == '__main__':
     import sys
     sys.path.append(Path(__file__).parents[0])
-    import fg_res
+    import fg_res  # noqa: F401 - availability check
     res = Res()
     resx = Res()
     print (f"id(res)     {id(res)}\nid(resx)    {id(resx)}")

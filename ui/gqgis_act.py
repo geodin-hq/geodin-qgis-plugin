@@ -14,12 +14,7 @@ CONTEXT_RES = "GQgis_Act"
 import logging
 import time
 
-import qgis.gui
-import qgis.utils
-from qgis.PyQt import (
-    QtGui,
-    QtWidgets
-    )
+from qgis.PyQt import QtWidgets
 from GeODinQGIS.ui.gqgis_bas import (
     GQgis_Bas_Widget,
     GQgis_MsgBox as MsgBox
@@ -209,7 +204,7 @@ class GQgis_Act_Connect(QtWidgets.QAction, GQgis_Bas_Widget):
             else:
                 # GeODin starten/verbinden...
                 app.openGAppCnn()
-        except:
+        except Exception:
             self.log.critical("Major disater...", exc_info=True)
             gx.gApp.reset()
             app.updateUI()
@@ -261,7 +256,7 @@ class GQgis_Act_Connect(QtWidgets.QAction, GQgis_Bas_Widget):
             msg = exc.msg()
             self.log.warning(msg.replace("\n","\n\t"))
             MsgBox.error(self._parent, None, msg.replace("\n","\n   "))
-        except:
+        except Exception:
             gx.gApp.reset()
             self.log.critical("Major disater...", exc_info=True)
         finally:

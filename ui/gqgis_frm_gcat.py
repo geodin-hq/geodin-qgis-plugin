@@ -8,27 +8,18 @@ CONTEXT_RES = "GQgis_Frm_GCat"
 """context for resource translation of QWidgets"""
 import logging
 import types
-from pathlib import Path
 
 import qgis.gui
 from qgis.PyQt import (
     QtCore,
-    QtGui,
-    QtWidgets
-    )
+    QtWidgets,
+)
 
 import GeODinQGIS.gqgis_config as gqc
-import GeODinQGIS.gqgis_base as gqb
 import GeODinQGIS.vm as vm
 
-from GeODinQGIS import (
-    env,
-    res
-    )
-from GeODinQGIS.ui.gqgis_bas import (
-    GQgis_Bas_Widget,
-    GQgis_MsgBox as MsgBox
-)
+from GeODinQGIS import res
+from GeODinQGIS.ui.gqgis_bas import GQgis_Bas_Widget
 from GeODinQGIS.ui.ui_gqgis_frm_gcat import Ui_GQgis_Frm_GCat
 
 class GQgis_Frm_GCat(qgis.gui.QgsDockWidget, GQgis_Bas_Widget):
@@ -72,7 +63,7 @@ class GQgis_Frm_GCat(qgis.gui.QgsDockWidget, GQgis_Bas_Widget):
         # 05/2023 j.ebert, Anmerkung
         #   DBRoot-Node/QTreeWidgetItem erstellen und QTreeWidget als Prm 'parent' übergeben
         #   -> Node/QTreeWidgetItem wird damit dem QTreeWidget als TopLevelItem hinzugefügt
-        tvwDBRoot = vm.GoNodeDBRoot(self.ui.treeWidget, None)
+        vm.GoNodeDBRoot(self.ui.treeWidget, None)
         self.validateUi()
         self.connectUi()
         # translate QWidget
@@ -100,7 +91,7 @@ class GQgis_Frm_GCat(qgis.gui.QgsDockWidget, GQgis_Bas_Widget):
             if hasattr(self, '_showAction'):
                 self._showAction.setText(self.trans("GeoDinQGIS Explorer"))
                 self._showAction.setToolTip(self.trans("GeoDinQGIS Explorer"))
-        except:
+        except Exception:
             self.log.error("", exc_info=True)
         return
 

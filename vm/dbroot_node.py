@@ -22,9 +22,8 @@ from GeODinQGIS import (
     app
 )
 from GeODinQGIS.ui.gqgis_bas import (
-    cursor,
     plugin,
-    GQgis_MsgBox as MsgBox
+    GQgis_MsgBox as MsgBox,
 )
 
 class GoNodeDBGroup(bas.GoNode):
@@ -79,7 +78,7 @@ class GoNodeDBGroup(bas.GoNode):
             # Database dem DDX hinzufügen
             gDB.add()
             # Database dem Explorer/Catalog (QTreeWidget) hinzufügen...
-            node = GoNodeDatabase(self, gDB)
+            GoNodeDatabase(self, gDB)
             self.sortChildren(self.orderColumn(), QtCore.Qt.SortOrder.AscendingOrder)
             self.setExpanded(expandNode)
         except gqb.GxException as exc:

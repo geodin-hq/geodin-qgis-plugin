@@ -52,7 +52,7 @@ class GQgis_Dlg_Help(QtWidgets.QDialog, GQgis_Bas_Widget):
         # translate Ui/QWidget
         try:
             self.setWindowTitle(self.trans("GeoDinQGIS - Help"))
-        except:
+        except Exception:
 ##            self.log.error(self.ui.__dir__())
             self.log.error("", exc_info=True)
         # reload the help page for the current language setting

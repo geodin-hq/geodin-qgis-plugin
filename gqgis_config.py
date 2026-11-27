@@ -10,7 +10,7 @@
 #-------------------------------------------------------------------------------
 __company__ = 'Fugro'
 __product__ = 'GeODinQGIS'
-__version__ = '4.1.0.2648'   # fallback, the version is read from metadata.txt (before: '3.0.2300.99')
+__version__ = '4.1.1.2648'   # fallback, the version is read from metadata.txt (before: '3.0.2300.99')
 __author__ = 'j.ebert'
 __license__ = 'GPL-2.0-or-later'
 __author_email__ = 'j.ebert@fugro.com'

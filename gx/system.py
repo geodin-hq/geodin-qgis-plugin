@@ -12,8 +12,6 @@ import json
 import logging
 import os
 import re
-import struct
-import time
 from pathlib import Path
 from win32api import (
     GetFileVersionInfo,
@@ -148,7 +146,7 @@ class GxReg:
                     # -> ADOConnection und FireDACConnection ignorieren/NICHT ins Dict speichern
                     if not regVal[0].endswith('Connection'):
                         prps[regVal[0]] = regVal[1]
-        except:
+        except Exception:
             cls.log.warning("", exc_info=True)
         return prps
 
@@ -377,7 +375,7 @@ class GxReg:
             ms = info['FileVersionMS']
             ls = info['FileVersionLS']
             return HIWORD (ms), LOWORD (ms), HIWORD (ls), LOWORD (ls)
-        except:
+        except Exception:
             cls.log.debug(fname, exc_info=True)
             return None
 
@@ -540,7 +538,7 @@ class GxSys:
                 prps[match.group(1).lower()] = match.group(2)
             prps['driverid'] = prps.get('driverid', '').upper()
             cls.log.debug(json.dumps(prps, indent=4).replace('\n','\n\t'))
-        except:
+        except Exception:
             cls.log.error(
                 "Error extracting DBConnection\n\t%s",
                 str(settings),
@@ -568,7 +566,7 @@ class GxSys:
         13.03.2023 j.ebert
         """
         if not (bool(programData) and isinstance(programData, str)):
-            raise AssertionError(f"Argument 'programData': string is required and not emtpy")
+            raise AssertionError("Argument 'programData': string is required and not empty")
         dataPath = Path(programData)
         if not (dataPath.exists() and dataPath.is_dir()):
             raise AssertionError(f"Folder '{str(dataPath)}' not found")
@@ -614,7 +612,7 @@ class GxSys:
         """
         cls.log.debug("appFolder    %s", appFolder)
         if not (bool(appFolder) and isinstance(appFolder, str)):
-            raise AssertionError(f"Argument 'appFolder': string is required and not emtpy")
+            raise AssertionError("Argument 'appFolder': string is required and not empty")
         appPath = Path(appFolder)
         if (not appPath.exists()) and (not appPath.is_dir()):
             raise gqb.GxAppFolderError( "Folder '%s' not found", str(appPath))

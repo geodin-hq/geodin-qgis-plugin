@@ -8,8 +8,6 @@ Functions:
 24.04.2024 j.ebert
 """
 import os
-import datetime
-import hashlib
 import json
 import logging
 import secrets
@@ -17,7 +15,6 @@ import shutil
 import string
 import time
 import traceback
-import zipfile
 from  collections import Counter
 from pathlib import Path
 
@@ -29,7 +26,6 @@ from GeODinQGIS.dm.lnkadc import GoLnkADC
 from GeODinQGIS.dm.project import GoProject
 from GeODinQGIS.dm.query import GoQuery
 import GeODinQGIS.gx as gx
-from GeODinQGIS.gx.system import GxSys
 #from GeODinQGIS.ui.gqgis_dlg_login import GQgis_Dlg_Login
 
 class GoDatabase(bas.GoBaseClass):
@@ -420,7 +416,7 @@ class GoDatabase(bas.GoBaseClass):
         except gqb.GxException as exc:
             self.log.debug(exc.msg(), exc_info=True)
             raise
-        except:
+        except Exception:
             self.log.critical(
                 "Major disaster opening %s database '%s'",
                 self.DriverID, self.Name,
@@ -804,13 +800,13 @@ class GoDatabase(bas.GoBaseClass):
                     #   Die Funktion shutil.rmtree() löscht den Ordner samt
                     #   allen darin enthalten Dateien und Ordnern!!!
                     shutil.rmtree(self.DataPath)
-                except:
+                except Exception:
                     self.log.error(
                     "GoDatabase-Folder '%s' is orphaned but could not be removed\n\t%s",
                     self.dumpFilename(), str(self.DataPath),
                     exc_info=True
                     )
-        except:
+        except Exception:
             self.log.critical(
             "GoDatabase '%s' could not be completely removed\n\t%s\n\t%s",
             self.Name, str(self.DataPath), str(Path(self._DDX.File) / self.dumpFilename()),
@@ -944,9 +940,9 @@ class GoDatabase(bas.GoBaseClass):
                 #   Parent-Directory ist der Data-Folder vom DDX muss also existieren.
                 # GoDatabase Folder erstellen
                 dataPath.mkdir(exist_ok=True)
-                with open(dataPath / (self.Name + '.con'), 'w') as conFile:
+                with open(dataPath / (self.Name + '.con'), 'w'):
                     pass
-            except:
+            except Exception:
                 self.log.error(
                     "Failed to create GoDatabase folder '%s'", self.DataPath, exc_info=True
                 )

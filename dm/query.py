@@ -6,7 +6,15 @@ Classes:
 17.04.2023 j.ebert
 """
 import tempfile
-from GeODinQGIS.dm.bas import *
+import datetime
+import GeODinQGIS.gqgis_config as gqc
+import GeODinQGIS.gx as gx
+import json
+from pathlib import Path
+from GeODinQGIS.dm.bas import (
+    _JSON_DUMP_IDENT,
+    GoBaseClass,
+)
 
 class GoQuery(GoBaseClass):
     """Data Model Base Class
@@ -190,7 +198,7 @@ class GoQuery(GoBaseClass):
             try:
                 self._isUsed = value
                 self.DbRef.store()
-            except:
+            except Exception:
                 self.log.critical("Major disaster...", exc_info=True)
                 self._isUsed = not value
         return self._isUsed

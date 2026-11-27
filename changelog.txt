@@ -1,3 +1,14 @@
+# Version __4.1.1.2648__ (11/2026)
+
+* Changes
+  * code quality checks (Flake8) of plugins.qgis.org pass
+  * explicit imports instead of 'from ... import *'
+  * 'except Exception:' instead of bare 'except:'
+  * unused imports, variables and a duplicate method removed
+* Fixes
+  * obsolete GeoDinQGIS entries are removed from the QGIS project again (NameError 'oldKey')
+  * from_json of project groups and ADC links raises NotImplementedError instead of NameError
+
 # Version __4.1.0.2648__ (11/2026)
 
 * Changes

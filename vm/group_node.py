@@ -10,7 +10,6 @@ import json
 import logging
 from pathlib import Path
 
-import qgis.core
 from qgis.PyQt import (
     QtCore,
     QtWidgets
@@ -19,9 +18,6 @@ from qgis.PyQt import (
 import GeODinQGIS.gqgis_base as gqb
 import GeODinQGIS.gqgis_config as gqc
 import GeODinQGIS.vm.bas_node as bas
-from GeODinQGIS import (
-    app
-)
 from GeODinQGIS.vm.query_node import GoNodeQuery
 from GeODinQGIS.ui.gqgis_bas import (
     cursor,
@@ -62,10 +58,10 @@ class GoNodeProject(bas.GoNode):
         #   dann werden die Group-Nodes automatisch wie deren Parent-Node disabled dargestellt.
         #   (Attr isDisabled kann auch für GeODin-Projekte im DataModel implementiert werden,
         #    aber es funktioniert im ViewModel, da QTreeWidgetItem diese Attr. bereits hat.)
-        nodeGrpLOC = GoNodeGrpLOC(self, self.tag())
-        nodeGrpINV = GoNodeGrpINV(self, self.tag())
+        GoNodeGrpLOC(self, self.tag())
+        GoNodeGrpINV(self, self.tag())
         if self.DbRef.hasADCDATA():
-            nodeGrpADC = GoNodeGrpADC(self, self.tag())
+            GoNodeGrpADC(self, self.tag())
         # QTreeWidgetItem aktualisieren
         self.update(1)
         return
@@ -201,7 +197,7 @@ class GoNodeGrpLOC(bas.GoNode):
         """
         self.log.log(gqc._LOG_TRACE,"gDB '%s' (PrjID '%s')...", self.DbRef.Name, self.PrjID)
         for qry in self.DbRef.list_GrpLOC(self.PrjID):
-            nodeQry = GoNodeQuery(self, qry)
+            GoNodeQuery(self, qry)
         self.sortChildren(self.orderColumn(), QtCore.Qt.SortOrder.AscendingOrder)
         return
 
@@ -228,7 +224,7 @@ class GoNodeGrpINV(bas.GoNode):
         self.log.log(gqc._LOG_TRACE,"gDB '%s' (PrjID '%s')...", self.DbRef.Name, self.PrjID)
         for qry in self.DbRef.list_GrpINV(self.PrjID):
             self.log.debug(str(qry))
-            nodeQry = GoNodeQuery(self, qry)
+            GoNodeQuery(self, qry)
         self.sortChildren(self.orderColumn(), QtCore.Qt.SortOrder.AscendingOrder)
         return
 
@@ -267,7 +263,7 @@ class GoNodeGrpADC(bas.GoNode):
                     self.DbRef.Name, self.PrjID, json.dumps(logRows, indent=4).replace("\n", "\n\t")
                 )
             for lnk in lnks:
-                nodeLnk = GoNodeLnkADC(self, lnk)
+                GoNodeLnkADC(self, lnk)
             self.sortChildren(self.orderColumn(), QtCore.Qt.SortOrder.AscendingOrder)
         return
 
@@ -328,14 +324,14 @@ class GoNodeLnkADC(bas.GoNode):
         if self.lyrType() == 'Raster':
 ##            newLyr = qgis.core.QgsRasterLayer(self.lyrSource(), self.lyrName())
 ##            qgis.core.QgsProject.instance().addMapLayer(newLyr)
-            newLyr = plugin().iface().addRasterLayer(self.lyrSource(), self.lyrName())
+            plugin().iface().addRasterLayer(self.lyrSource(), self.lyrName())
         else:
             # 07/2023 j.ebert, Anmerkung
             #   Beide Varianten sind quasiu identisch
             #   https://docs.qgis.org/3.28/en/docs/pyqgis_developer_cookbook/loadlayer.html#vector-layers
 ##            newLyr = qgis.core.QgsVectorLayer(self.lyrSource(), self.lyrName(), "ogr")
 ##            qgis.core.QgsProject.instance().addMapLayer(newLyr)
-            newLyr =  plugin().iface().addVectorLayer(self.lyrSource(), self.lyrName(), "ogr")
+            plugin().iface().addVectorLayer(self.lyrSource(), self.lyrName(), "ogr")
         return
 
 def main():

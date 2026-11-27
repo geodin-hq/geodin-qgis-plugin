@@ -7,7 +7,6 @@ Classes:
 """
 import logging
 import os
-import struct
 import time
 from pathlib import Path
 from qgis.core import (
@@ -18,10 +17,9 @@ from qgis.PyQt import (
     QtWidgets
     )
 
-from GeODinQGIS.resources_rc import *
+import GeODinQGIS.resources_rc  # noqa: F401 - registers the Qt resources
 from GeODinQGIS.gqgis_app import GQgis_App
 from GeODinQGIS import env
-import GeODinQGIS.gx as gx
 import GeODinQGIS.ui as ui
 import GeODinQGIS.gqgis_config as gqc
 
@@ -430,7 +428,7 @@ class GQgis:
                     "\n\t".join(["%s\\%s" % (self.projScope(), key) for key in oldKeys])
                 )
                 for key in oldKeys:
-                    qgsProj.removeEntry(self.projScope(), oldKey)
+                    qgsProj.removeEntry(self.projScope(), key)
         else:
             # Wenn das DDX-File gesetzt ist und
             # wenn keine GeODinQGIS project settings geändert wurden,

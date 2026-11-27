@@ -26,9 +26,8 @@ from pathlib import Path
 
 import qgis.core
 from qgis.PyQt import (
-    QtCore,
     QtGui,
-    QtWidgets
+    QtWidgets,
 )
 
 import GeODinQGIS.gqgis_config as gqc

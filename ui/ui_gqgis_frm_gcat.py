@@ -40,7 +40,6 @@ class Ui_GQgis_Frm_GCat(object):
     def retranslateUi(self, GQgis_Frm_GCat):
         _translate = QtCore.QCoreApplication.translate
         GQgis_Frm_GCat.setWindowTitle(_translate("GQgis_Frm_GCat", "GeoDinQGIS - Explorer"))
-from qgis.gui import QgsDockWidget
 ##import resources_rc
 
 

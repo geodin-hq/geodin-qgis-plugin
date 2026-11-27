@@ -5,16 +5,9 @@ Classes:
 23.04.2024 j.ebert
 """
 
-import datetime
 import json
 import logging
-import os
 import re
-import struct
-import sys
-import time
-import traceback
-import win32com.client
 from collections import Counter
 from pathlib import Path
 
@@ -24,19 +17,19 @@ import GeODinQGIS.gx as gx
 
 _log = logging.getLogger(f"{gqc._LOG_PARENTS}{Path(__file__).stem}")
 try:
-    import psycopg2
+    import psycopg2  # noqa: F401 - availability check
     from GeODinQGIS.gx.gxdbprv4pg import (
         GxDbProvider4PG
     )
-except:
+except Exception:
     _log.critical("Failed to import %s modules", 'psycopg2', exc_info=True)
 try:
-    import pyodbc
+    import pyodbc  # noqa: F401 - availability check
     from GeODinQGIS.gx.gxdbprv4odbc import (
         GxDbProvider4MSACC,
         GxDbProvider4MSSQL
     )
-except:
+except Exception:
     _log.critical("Failed to import %s modules", 'pyodbc', exc_info=True)
 try:
     from GeODinQGIS.gx.gxdbprv4ora import (
@@ -44,7 +37,7 @@ try:
     )
 except ImportError:
     _log.info("Python module '%s' not installed, Oracle databases are not supported", 'oracledb')
-except:
+except Exception:
     _log.critical("Failed to import %s modules", 'oracledb', exc_info=True)
 
 
@@ -202,9 +195,6 @@ FROM {name}"""  # nosec B608 - table names from the GeoDin configuration
         #       (erst beim Ausführen zeigt sich, ob die Abfrage verfügbar/nutzbar ist)
         if owner:
             self.log.warning("Argument 'owner' is ignored/is no longer supported")
-            sqlWhere = "OBJ_OWNER = '{owner}'"
-        else:
-            sqlWhere = "OBJ_OWNER = '' OR OBJ_OWNER IS Null"
 
         dbSQL = f"""
 SELECT
@@ -393,7 +383,7 @@ class GxDbConnection:
                     self._log_GxSQL(cmdText)
                     resAlias = self._CnnPrv.load_Data(cmdText)
                     self._log_GxSQL()
-            except:
+            except Exception:
                 self.log.error(
                     "%s Database '%s': Unknown error...\n\n%s\n",
                     self.DriverID, self.DbName, cmdText,
@@ -471,7 +461,7 @@ class GxDbConnection:
                     "INV_TYPES (PrjID '%s'): \n\t%s",
                     prjID, json.dumps(res, indent=4).replace("\n", "\n\t")
                 )
-        except:
+        except Exception:
             self.log.critical("Major disaster...", exc_info=True)
         return res
 
@@ -503,7 +493,7 @@ class GxDbConnection:
                     "INV_TYPES/counts (PrjID '%s'): \n\t%s",
                     prjID, json.dumps(res, indent=4).replace("\n", "\n\t")
                 )
-        except:
+        except Exception:
             self.log.critical("Major disaster...", exc_info=True)
         return res
 
@@ -523,7 +513,7 @@ class GxDbConnection:
             rows = self._CnnPrv.load_Data(cmdText)
             self._log_GxSQL()
             res = {row[0]: int(row[1] or 0) for row in rows}
-        except:
+        except Exception:
             # counts are only additional information -> no 'Major disaster'
             self.log.error("Number of objects per object type not loaded", exc_info=True)
             res = None
@@ -553,7 +543,7 @@ class GxDbConnection:
             #       dann Transformation in die Provider Methode verschieben,
             #       aber Achtung, Trasnformation in load_Data() nur wenn len(row) == 1
             res = [row[0] for row in res]
-        except:
+        except Exception:
             self.log.critical("Major disaster...", exc_info=True)
         return res
 
@@ -571,7 +561,7 @@ class GxDbConnection:
             self._log_GxSQL(cmdText)
             res = self._CnnPrv.load_Data(cmdText)
             self._log_GxSQL()
-        except:
+        except Exception:
             self.log.critical("Major disaster...", exc_info=True)
         return res
 
@@ -591,7 +581,7 @@ class GxDbConnection:
             self._log_GxSQL(cmdText)
             res = self._CnnPrv.load_Data(cmdText)
             self._log_GxSQL()
-        except:
+        except Exception:
             self.log.critical("Major disaster...", exc_info=True)
         return res
 
@@ -618,7 +608,7 @@ class GxDbConnection:
             self._log_GxSQL(cmdText)
             res = self._CnnPrv.load_Data(cmdText)
             self._log_GxSQL()
-        except:
+        except Exception:
             self.log.critical("Major disaster...", exc_info=True)
         return res
 
@@ -638,7 +628,7 @@ class GxDbConnection:
             self._log_GxSQL(cmdText)
             res = self._CnnPrv.load_Data(cmdText)
             self._log_GxSQL()
-        except:
+        except Exception:
             self.log.critical("Major disaster...", exc_info=True)
         return res
 
@@ -659,7 +649,7 @@ class GxDbConnection:
             self._log_GxSQL(cmdText)
             res = self._CnnPrv.load_Data(cmdText)
             self._log_GxSQL()
-        except:
+        except Exception:
             self.log.critical("Major disaster...", exc_info=True)
         return res
 
@@ -766,7 +756,7 @@ class GxDbConnection:
             self.log.debug(
                 json.dumps(prps, indent=4).replace("\n", "\n\t")
             )
-        except:
+        except Exception:
             self.log.error(
                 "Error extracting DBConnection\n\t%s",
                 str(settings),
@@ -817,7 +807,7 @@ class GxDbConnection:
             error = ""
         except gqb.GQgisException as exc:
             self.log.error(exc.msg())
-        except:
+        except Exception:
             self.log.error("Failed to validate %s connection", prps['driverid'], exc_info=True)
         finally:
             prps['error'] = error
@@ -851,7 +841,7 @@ class GxDbConnection:
             error = ""
         except gqb.GQgisException as exc:
             self.log.error(exc.msg())
-        except:
+        except Exception:
             self.log.error("Failed to validate %s connection", prps['driverid'], exc_info=True)
         finally:
             prps['error'] = error
@@ -883,7 +873,7 @@ class GxDbConnection:
             error = ""
         except gqb.GQgisException as exc:
             self.log.error(exc.msg())
-        except:
+        except Exception:
             self.log.error("Failed to validate %s connection", prps['driverid'], exc_info=True)
         finally:
             prps['error'] = error
@@ -911,7 +901,7 @@ class GxDbConnection:
             error = ""
         except gqb.GQgisException as exc:
             self.log.error(exc.msg())
-        except:
+        except Exception:
             self.log.error("Failed to validate %s connection", prps['driverid'], exc_info=True)
         finally:
             prps['error'] = error

@@ -9,10 +9,7 @@
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
 import logging
-import json
-import re
 
-import GeODinQGIS.gqgis_base as gqb
 import GeODinQGIS.gqgis_config as gqc
 
 class GxDbProvider:

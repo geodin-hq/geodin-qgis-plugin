@@ -28,7 +28,6 @@ from qgis.PyQt import (
 
 
 import GeODinQGIS.gqgis_config as gqc
-import GeODinQGIS.gqgis_base as gqb
 from GeODinQGIS import (
     res
 )

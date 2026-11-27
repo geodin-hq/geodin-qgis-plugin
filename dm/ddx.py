@@ -8,8 +8,6 @@ Functions:
 05.07.2023 j.ebert
 """
 import os
-import datetime
-import hashlib
 import json
 import logging
 import tempfile
@@ -37,7 +35,7 @@ class GxDDX:
     """
     log  = logging.getLogger(f"{gqc._LOG_PARENTS}GxDxx")
     """Logger of this class"""
-    _DumpFile = f"GxDDX.content".lower()
+    _DumpFile = "gxddx.content"
     """Dump file of this class stored in the data dictionary"""
 
     def __init__(
@@ -243,7 +241,7 @@ class GxDDX:
             if not dbRef.isOpened():
                 try:
                     dbRef.open()
-                except:
+                except Exception:
                     self.log.debug("Failed to open database  '%s'", dbRef.Name, exc_info=True)
                     raise gqb.GxDDXException("Database '%s' not opened", dbRef.Name)
             gxPrms = srcPath.stem.split('_')
@@ -261,7 +259,7 @@ class GxDDX:
         except gqb.GxDDXException:
             self.log.log(gqc._LOG_TRACE,"Reraise GxDDXException...", exc_info=True)
             raise
-        except:
+        except Exception:
             self.log.critical("Major disaster...", exc_info=True)
             raise gqb.GxDDXException("Database not found by data source\n\t%s", dataSource)
         return gxPrms
@@ -311,7 +309,7 @@ class GxDDX:
                 if not dbRef.isOpened():
                     try:
                         dbRef.open()
-                    except:
+                    except Exception:
                         self.log.debug("Failed to open database  '%s'", dbRef.Name, exc_info=True)
                         exc = gqb.GxDDXException("Database '%s' not opened", dbRef.Name)
                 if dbRef.isOpened():
@@ -352,7 +350,7 @@ class GxDDX:
                 # (Damit werden verwaiste GoDatabase-Folder ignoriert.)
                 (srcPath.parent.stem in [item._Desc for item in self.Databases if item.isPresent])
             )
-        except:
+        except Exception:
             self.log.critical("Valid DbRef from '%s' faild", str(dataSource), exc_info=True)
         return val
 
@@ -387,7 +385,7 @@ class GxDDX:
                             self.log.debug("File '%s' skipped", filename)
                 Path(ddxFile).unlink()
                 tmpPath.rename(ddxFile)
-            except:
+            except Exception:
                 self.log.critical(
                     "File '%s' could not be deleted\n\t%s\n", filename, self.File,
                     exc_info=True
@@ -471,7 +469,7 @@ class GxDDX:
             # AssertionError: Type 'dict' is expected, but type 'list' was loaded
             cls.log.warning("GxBadFileError: Bad or corrupted file '%s'", ddxFile)
             raise gqb.GxBadFileError("Bad or corrupted file '%s'", ddxFile)
-        except:
+        except Exception:
             cls.log.error(
                 "GxException on loading %s from file '%s'", cls.__name__, ddxFile,
                 exc_info=True
@@ -500,7 +498,7 @@ class GxDDX:
             # 07/2023 j.ebert, Anmerkung
             #   Wenn beim Erstellen eines neuen DDX das DDX-File nicht existiert,
             #   dann verursacht die Methode update() eine Exception.
-            with zipfile.ZipFile(self.File, "w") as zipFile:
+            with zipfile.ZipFile(self.File, "w"):
                 pass
         dmpData = {self.__class__.__name__: dmpDict}
         self.update(self._DumpFile, json.dumps(dmpData, indent=4).encode("utf-8"))
@@ -629,7 +627,7 @@ class GxDDX:
         try:
             with zipfile.ZipFile(self.File) as ddxZip:
                 dumpFilenames = [item.filename.lower() for item in ddxZip.filelist]
-        except:
+        except Exception:
             self.log.critical(
                 "Failed to Dump-Filenames of DDX file\n\t%s", self.File,
                 exc_info=True
@@ -652,7 +650,7 @@ class GxDDX:
         """
         self.log.log(gqc._LOG_TRACE,"")
         if not (bool(filename) and isinstance(filename, str)):
-            raise AssertionError(f"Argument 'filename': string is required and not emtpy")
+            raise AssertionError("Argument 'filename': string is required and not empty")
         ddxFile = self.File
         tmpPath = None
         try:
@@ -694,7 +692,7 @@ class GxDDX:
                             self.log.debug("File '%s' is skipped", filename)
                 Path(ddxFile).unlink()
                 tmpPath.rename(ddxFile)
-        except:
+        except Exception:
             self.log.critical(
                 "DDX-File '%s' could not be updated\n\tfilename: %s\n\tdata:     %s\n",
                 self.File, filename, str(data)[:25],
@@ -725,7 +723,7 @@ class GxDDX:
                     dirPath.parents[idx].mkdir(exist_ok=True)
                 # DDX Data Folder erstellen
                 dirPath.mkdir(exist_ok=True)
-            except:
+            except Exception:
                 self.log.error("Failed to create DDX data folder '%s'", self.Data, exc_info=True)
         return dirPath.exists()
 

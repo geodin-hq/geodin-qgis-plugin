@@ -11,7 +11,6 @@ import datetime
 import json
 import logging
 import os
-import re
 import struct
 import sys
 import time
@@ -431,7 +430,7 @@ class GxCOM:
         appFolder = ""
         try:
             appFolder = self._gCOM_AppFolder()[1]
-        except:
+        except Exception:
             # GeODin COM Connection neu öffnen/instanzieren...
             # - GeODin Apllication/COM Server prüfen
             if GxReg.query_Handle():
@@ -857,7 +856,7 @@ class GxSQL:
         try:
             import pyodbc
             rows = pyodbc.drivers()
-        except:
+        except Exception:
             cls.log.critical("Major disaster...", exc_info=True)
             rows = ['???']
         finally:
@@ -1070,7 +1069,7 @@ class GxSQL:
             cls.log.debug(
                 "%s database '%s' could be connected successfully" , gDB.DriverID, gDB.Name
             )
-        except:
+        except Exception:
             cls.log.warning(
                 "%s database '%s' could not be connected", gDB.DriverID, gDB.Name,
                 exc_info=True
@@ -1122,7 +1121,7 @@ class GxSQL:
                     error = ""
         except ImportError:
             cls.log.error("Import Python modul '%s' failed", 'pyodbc', exc_info=True)
-        except:
+        except Exception:
             cls.log.error("Failed to validate %s connection", prps['driverid'], exc_info=True)
         finally:
             prps['error'] = error
@@ -1161,7 +1160,7 @@ class GxSQL:
                 error = ""
         except ImportError:
             cls.log.error("Import Python modul '%s' failed", 'pyodbc', exc_info=True)
-        except:
+        except Exception:
             cls.log.error("Failed to validate %s connection", prps['driverid'], exc_info=True)
         finally:
             prps['error'] = error
@@ -1188,12 +1187,12 @@ class GxSQL:
                 "Failed to validate %s connection"
             ) % prps['driverid']
             # notwendige Python Module prüfen
-            import psycopg2
+            import psycopg2  # noqa: F401 - availability check
             # erfolgreich -> Fehler(-Meldung) zurücksetzen
             error = ""
         except ImportError:
             cls.log.error("Import Python modul '%s' failed", 'psycopg2', exc_info=True)
-        except:
+        except Exception:
             cls.log.error("Failed to validate %s connection", prps['driverid'], exc_info=True)
         finally:
             prps['error'] = error

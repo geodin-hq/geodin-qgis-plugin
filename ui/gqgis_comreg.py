@@ -17,8 +17,7 @@ from GeODinQGIS import res
 from GeODinQGIS.gx.comreg import GxComReg
 from GeODinQGIS.ui.gqgis_bas import (
     busy,
-    cursor,
-    GQgis_MsgBox as MsgBox
+    GQgis_MsgBox as MsgBox,
 )
 
 CONTEXT = "GQgis_ComReg"

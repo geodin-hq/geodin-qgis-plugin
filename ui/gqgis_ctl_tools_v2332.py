@@ -9,14 +9,21 @@ Classes:
 
 23.04.2024 j.ebert
 """
-import datetime
 import json
 from pathlib import Path
 
 CONTEXT_RES = "GQgis_Act"
 """context for resource translation of QWidgets"""
 
-from GeODinQGIS.ui.gqgis_bas import *
+import GeODinQGIS.gqgis_base as gqb
+import GeODinQGIS.gqgis_config as gqc
+import logging
+from GeODinQGIS import res
+from qgis.PyQt import QtCore, QtGui, QtWidgets
+from GeODinQGIS.ui.gqgis_bas import (
+    GQgis_Bas_Widget,
+    GQgis_MsgBox,
+)
 from GeODinQGIS import (
     app
 )
@@ -473,7 +480,6 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget, _GQgis_ModeMe
             # 10/2026: GeoDin layer with selected features (active layer or other GeoDin layer)
             self._switchToSelectedGoLayer()
             if self.GoLyr is None:
-                cboExc = self.cboLayers().GoLyrExc
                 raise gqb.GxToolError("%s", _goLyrExcText(self.cboLayers()))
             # FeatureIds (INVIDs) der selektierten Feature ermitteln...
             if self.GoLyr.selectedFeatureCount() == 0:
@@ -512,12 +518,12 @@ class GQgis_Act_ToolSelection(QtWidgets.QAction, GQgis_Bas_Widget, _GQgis_ModeMe
             if self.GoLyr:
                 try:
                     qgis.utils.iface.layerTreeView().setCurrentLayer(self.GoLyr)
-                except:
+                except Exception:
                     self.log.debug(
                         "Layer could not be activated in the TOC...\n\t%s (LayerId '%s')",
                         self.GoLyrText, self.GoLyr.id()
                     )
-        except:
+        except Exception:
             self.log.critical("Unkown error on 'Create object group'", exc_info=True)
             GQgis_MsgBox.critical(
                 self._parent,
@@ -888,7 +894,7 @@ class GQgis_Cbo_Layers(QtWidgets.QComboBox, GQgis_Bas_Widget):
                     goLyr = (lyr.id(), lyrLongName, lyrSortText, lyr)
         except FileNotFoundError as exc:
             self.log.debug("Excepted FileNotFoundError: '%s'", exc.filename)
-        except:
+        except Exception:
             self.log.error("Convert QgsLayer '%s' faild", lyr.id(), exc_info=True)
         return goLyr
 
@@ -1009,12 +1015,12 @@ class GQgis_MapToolHotlink(qgis.gui.QgsMapToolIdentifyFeature):
                 if self._GoLyr:
                     try:
                         qgis.utils.iface.layerTreeView().setCurrentLayer(self._GoLyr)
-                    except:
+                    except Exception:
                         self.log.debug(
                             "Layer could not be activated in the TOC...\n\t%s (LayerId '%s')",
                             self._GoLyr.name(), self._GoLyr.id()
                         )
-            except:
+            except Exception:
                 self.log.critical("Unkown error on 'Identify Object'", exc_info=True)
                 GQgis_MsgBox.critical(
                     None,

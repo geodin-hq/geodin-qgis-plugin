@@ -28,7 +28,6 @@ import datetime
 import logging
 import platform
 import urllib.parse
-import webbrowser
 import zipfile
 
 import win32api

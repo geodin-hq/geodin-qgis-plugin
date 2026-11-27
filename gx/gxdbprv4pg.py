@@ -9,7 +9,12 @@
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
 import psycopg2
-from GeODinQGIS.gx.gxdbprv import *
+import GeODinQGIS.gqgis_base as gqb
+import GeODinQGIS.gqgis_config as gqc
+import json
+from GeODinQGIS.gx.gxdbprv import (
+    GxDbProvider,
+)
 
 class GxDbProvider4PG (GxDbProvider):
     """
@@ -67,7 +72,7 @@ class GxDbProvider4PG (GxDbProvider):
             )
             self._Cnn = cnnObj
             self._CnnTag = cnnStr
-        except:
+        except Exception:
             self.log.warning(
                 "%s database '%s' could not be connected", self.DriverID, self.DbName,
                 exc_info=True
@@ -91,7 +96,7 @@ class GxDbProvider4PG (GxDbProvider):
                 res = True
             except psycopg2.errors.UndefinedTable:
                 pass
-            except:
+            except Exception:
                 raise
         return res
 

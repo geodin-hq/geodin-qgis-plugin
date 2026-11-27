@@ -1,5 +1,9 @@
 import oracledb
-from GeODinQGIS.gx.gxdbprv import *
+import GeODinQGIS.gqgis_base as gqb
+import GeODinQGIS.gqgis_config as gqc
+from GeODinQGIS.gx.gxdbprv import (
+    GxDbProvider,
+)
 
 _ORA_TABLE_NOT_FOUND = 942
 

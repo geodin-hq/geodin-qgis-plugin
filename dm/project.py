@@ -4,7 +4,14 @@ Classes:
 
 17.04.2023 j.ebert
 """
-from GeODinQGIS.dm.bas import *
+import datetime
+import GeODinQGIS.gqgis_config as gqc
+import json
+import traceback
+from GeODinQGIS.dm.bas import (
+    _JSON_DUMP_IDENT,
+    GoBaseClass,
+)
 
 class GoProject(GoBaseClass):
     """Data Model Base Class

@@ -4,10 +4,7 @@ Classes:
 
 26.03.2024 j.ebert
 """
-import json
-import logging
 import os
-import shutil
 import tempfile
 from pathlib import Path
 
@@ -19,15 +16,15 @@ from qgis.PyQt import (
 )
 
 import GeODinQGIS.gqgis_config as gqc
-from GeODinQGIS import (
-    app
-)
 from GeODinQGIS.ui.gqgis_bas import (
-    cursor,
     plugin,
-    GQgis_MsgBox as MsgBox
+    GQgis_MsgBox as MsgBox,
 )
-from GeODinQGIS.vm.bas_node import *
+import GeODinQGIS.gqgis_base as gqb
+import GeODinQGIS.gx as gx
+from GeODinQGIS.vm.bas_node import (
+    GoNode,
+)
 
 class GoNodeQuery(GoNode):
     """Project (GeODin Projekt) ViewModel/QTreeWidgetItem
@@ -451,7 +448,7 @@ class GoNodeQuery(GoNode):
                 extent.scale(1.1)
                 qgis.utils.iface.mapCanvas().setExtent(extent)
                 qgis.utils.iface.mapCanvas().refresh()
-            except:
+            except Exception:
                 self.log.error("Unkown error in onLayerZoomTo()...", exc_info=True)
         return
 

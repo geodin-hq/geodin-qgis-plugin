@@ -9,7 +9,12 @@
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
 import pyodbc
-from GeODinQGIS.gx.gxdbprv import *
+import GeODinQGIS.gqgis_base as gqb
+import GeODinQGIS.gqgis_config as gqc
+import json
+from GeODinQGIS.gx.gxdbprv import (
+    GxDbProvider,
+)
 
 class GxDbProvider4ODBC (GxDbProvider):
     """ abstract DbProvider for ODBC

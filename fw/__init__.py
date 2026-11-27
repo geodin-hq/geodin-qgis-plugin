@@ -14,7 +14,7 @@ __url__ = 'www.geodin.com'
 # - Default Logging wird jedoch mit fg_logging.LogConfigurator.load_jsonConfig() überladen
 # - logging.json wird aus fg_logging.LogConfigurator.app_folder()/config geladen
 #   08/2022 App Folder noch fix %APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\GeODinQGIS
-from .fg_logging import LogConfigurator
+from .fg_logging import LogConfigurator  # noqa: F401 - re-export
 
 from .fg_env import Env
 env = Env()

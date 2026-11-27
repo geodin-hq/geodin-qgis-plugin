@@ -14,6 +14,6 @@ __url__ = 'www.furgo.com'
 
 test = "einfacher String"
 from .client import GxCOMClient
-from .geodin import GxSQL
+from .geodin import GxSQL  # noqa: F401 - re-export
 
 gApp = GxCOMClient()

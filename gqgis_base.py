@@ -11,10 +11,7 @@
 
 import logging
 
-from GeODinQGIS.fw import (
-    env,
-    res
-)
+from GeODinQGIS.fw import res
 
 class GQgisException(Exception):
     """ GeODinQGIS BaseExpetion

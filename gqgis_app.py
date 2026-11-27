@@ -7,7 +7,6 @@ Classes:
 import inspect
 import logging
 import os
-import struct
 import time
 import traceback
 from pathlib import Path
@@ -77,7 +76,6 @@ class GQgis_App:
 
         05.09.2022 J.Ebert
         """
-        from GeODinQGIS import plugin
         txt = ""
 ##        txt += type(plugin()).__name__ + "\n"
         txt += self.info_QGIS()
@@ -252,7 +250,7 @@ class GQgis_App:
             self._reloadDDX()
         except gqb.GQgisBreak:
             pass
-        except:
+        except Exception:
             self.log.critical("Major Disaster...", exc_info=True)
         # 'maskable' UI-Update ggf. ausführen
         self._updateUI()
@@ -566,7 +564,7 @@ class GQgis_App:
             self.log.warning(msg.replace("\n","\n\t"))
             with cursor():
                 MsgBox.error(self.Plugin.parent(), 'GeoDin', msg.replace("\n","\n   "))
-        except:
+        except Exception:
             gx.gApp.reset()
             self.log.critical("Major disater...", exc_info=True)
             with cursor():
