@@ -12,7 +12,7 @@ import datetime
 import hashlib
 import json
 import logging
-import random
+import secrets
 import shutil
 import string
 import time
@@ -219,8 +219,8 @@ class GoDatabase(bas.GoBaseClass):
         self,
         uid
     ):
-        assert isinstance(uid, str) and bool(uid), \
-            "Argument 'uid' of type str is required"
+        if not (isinstance(uid, str) and bool(uid)):
+            raise AssertionError("Argument 'uid' of type str is required")
         goQry = None
         # 08/2023 j.ebert, Anmerkung
         #   Hier nicht über das Attr UID suchen, da
@@ -701,7 +701,7 @@ class GoDatabase(bas.GoBaseClass):
         #   Key ist NICHT(!) case-sensitive, da die UID der Abfrage (inkl. des Keys)
         #   als Filename für die DataSource der Abfage genutzt wird (OS Windows).
         while (not newKey) or (newKey in qryKeys):
-            newKey = ''.join(random.sample(string.ascii_uppercase + string.digits, 8))
+            newKey = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
         return newKey
 
     @classmethod
@@ -900,8 +900,8 @@ class GoDatabase(bas.GoBaseClass):
 
         20.01.2023 j.ebert
         """
-        assert isinstance(json_dct, dict), \
-            f"arg 'json_dct': type 'dict' expected, but '{type(json_dct).__name__}' received"
+        if not isinstance(json_dct, dict):
+            raise AssertionError(f"arg 'json_dct': type 'dict' expected, but '{type(json_dct).__name__}' received")
         dmpDict = json_dct[cls.__name__]
         # Objekt erstellen
         obj = cls()

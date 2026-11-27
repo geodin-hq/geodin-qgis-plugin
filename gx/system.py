@@ -64,8 +64,10 @@ class GxReg:
 
         08.03.2023 j.ebert
         """
-        assert isinstance(keyname, (str, list))
-        assert isinstance(valname, str)
+        if not isinstance(keyname, (str, list)):
+            raise AssertionError("Argument 'keyname' is not type 'str' or 'list'")
+        if not isinstance(valname, str):
+            raise AssertionError("Argument 'valname' is not type 'str'")
         if isinstance(keyname, str):
             regKey = cls.key(keyname)
         else:
@@ -565,11 +567,11 @@ class GxSys:
 
         13.03.2023 j.ebert
         """
-        assert bool(programData) and isinstance(programData, str), \
-            f"Argument 'programData': string is required and not emtpy"
+        if not (bool(programData) and isinstance(programData, str)):
+            raise AssertionError(f"Argument 'programData': string is required and not emtpy")
         dataPath = Path(programData)
-        assert dataPath.exists() and dataPath.is_dir(), \
-            f"Folder '{str(dataPath)}' not found"
+        if not (dataPath.exists() and dataPath.is_dir()):
+            raise AssertionError(f"Folder '{str(dataPath)}' not found")
         # Liste der SystemDatabase Namen laden/einlesen...
         confPath = dataPath / 'Config'
         if confPath.exists() and confPath.is_dir():
@@ -611,8 +613,8 @@ class GxSys:
         22.03.2023 j.ebert
         """
         cls.log.debug("appFolder    %s", appFolder)
-        assert bool(appFolder) and isinstance(appFolder, str), \
-            f"Argument 'appFolder': string is required and not emtpy"
+        if not (bool(appFolder) and isinstance(appFolder, str)):
+            raise AssertionError(f"Argument 'appFolder': string is required and not emtpy")
         appPath = Path(appFolder)
         if (not appPath.exists()) and (not appPath.is_dir()):
             raise gqb.GxAppFolderError( "Folder '%s' not found", str(appPath))

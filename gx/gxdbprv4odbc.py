@@ -98,27 +98,11 @@ class GxDbProvider4MSACC (GxDbProvider4ODBC):
                 if self._Parent._CnnPrps.get('password',''):
                     cnnPrms += ["PWD=%s" % self._Parent._CnnPrps['password']]
             cnnStr = ";".join(cnnPrms + [""])
-            # Connection-Prps/Prms/Str loggen, aber mit "maskierten" Passwort(!!!)
             self.log.debug(
                 "cnnPrps = %s\n\tcnnPrms = %s\n\tcnnStr = \"%s\"",
-                re.sub(
-                    "\"password\": \"\\S+\"",
-                    "\"password\": \"%s\"" % self.hiddenPwd(),
-                    json.dumps(self._Parent._CnnPrps, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                ),
-                re.sub(
-                    "\"PWD=\\S+\"",
-                    "\"PWD=%s\";" % self.hiddenPwd(),
-                    json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                ),
-                re.sub(
-                    "PWD=\\S+;",
-                    "PWD=%s;" % self.hiddenPwd(),
-                    cnnStr,
-                    re.IGNORECASE
-                )
+                json.dumps(self._Parent._CnnPrps, indent=4).replace("\n", "\n\t"),
+                json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
+                cnnStr
             )
             # pyodbc-Connection testen
             cnnObj = pyodbc.connect(cnnStr)
@@ -221,27 +205,11 @@ class GxDbProvider4MSSQL (GxDbProvider4ODBC):
                         self._Parent.DriverID, self._Parent.DbName
                     )
             cnnStr = ";".join(cnnPrms + [""])
-            # Connection-Prps/Prms/Str loggen, aber mit "maskierten" Passwort(!!!)
             self.log.debug(
                 "cnnPrps = %s\n\tcnnPrms = %s\n\tcnnStr = \"%s\"",
-                re.sub(
-                    "\"password\": \"\\S+\"",
-                    "\"password\": \"%s\"" % self.hiddenPwd(),
-                    json.dumps(self._Parent._CnnPrps, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                ),
-                re.sub(
-                    "\"PWD=\\S+\"",
-                    "\"PWD=%s\";" % self.hiddenPwd(),
-                    json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                ),
-                re.sub(
-                    "PWD=\\S+;",
-                    "PWD=%s;" % self.hiddenPwd(),
-                    cnnStr,
-                    re.IGNORECASE
-                )
+                json.dumps(self._Parent._CnnPrps, indent=4).replace("\n", "\n\t"),
+                json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
+                cnnStr
             )
             # pyodbc-Connection testen
             cnnObj = pyodbc.connect(cnnStr)

@@ -173,8 +173,8 @@ class GoBaseClass:
 
         20.01.2023 j.ebert
         """
-        assert isinstance(json_dct, dict), \
-            f"arg 'json_dct': type 'dict' expected, but '{type(json_dct).__name__}' received"
+        if not isinstance(json_dct, dict):
+            raise AssertionError(f"arg 'json_dct': type 'dict' expected, but '{type(json_dct).__name__}' received")
         # Objekt erstellen
         obj = cls(dbRef, json_dct['PrjID'], json_dct['Name'])
         obj._InsUser = json_dct.get('InsUser', obj._InsUser)

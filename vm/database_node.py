@@ -4,6 +4,7 @@ Classes:
 
 31.05.2023 j.ebert
 """
+import contextlib
 import json
 import logging
 import os
@@ -182,6 +183,33 @@ class GoNodeDatabase(bas.GoNode):
         self.update(mode)
         return
 
+    @contextlib.contextmanager
+    def _connecting(self):
+        """shows 'Connecting to database' while the database is opened (11/2026)"""
+        dlg = QtWidgets.QProgressDialog(plugin().parent())
+        dlg.setWindowTitle(self.translate("Open database"))
+        dlg.setLabelText(self.translate('Connecting to database "%s" ...') % self._tag.Name)
+        dlg.setCancelButton(None)
+        dlg.setRange(0, 0)
+        dlg.setMinimumDuration(0)
+        dlg.setWindowModality(QtCore.Qt.WindowModality.WindowModal)
+        dlg.show()
+        QtWidgets.QApplication.processEvents()
+        try:
+            with cursor(QtCore.Qt.CursorShape.WaitCursor):
+                yield
+        finally:
+            dlg.close()
+            dlg.deleteLater()
+
+    def _openError(self, detail):
+        MsgBox.error(
+            plugin().parent(),
+            self.translate("Open database"),
+            "%s\n%s" % (self.translate('The database "%s" could not be opened:') % self._tag.Name, detail),
+            self.translate("Please check the connection settings in GeoDin.")
+        )
+
     def onOpen(self):
         """opens Database/QTreeWidgetItem
 
@@ -192,12 +220,11 @@ class GoNodeDatabase(bas.GoNode):
             # 10/2026: misconfigured database (e.g. file not found) -> do not try to open
             #   it and do not ask for a login, show the error instead
             if self._tag.isDisabled():
-                raise gqb.GxSQLCnnError(
-                    "Database '%s' cannot be opened:\n%s", self._tag.Name, self._tag.Info
-                )
+                raise gqb.GxSQLCnnError("%s", self._tag.Info)
             try:
                 # Datenbank öffnen
-                self._tag.open()
+                with self._connecting():
+                    self._tag.open()
 ##            except gqb.GxSQLCnnError:
             except gqb.GxException:
                 # Wenn die Datenbank nicht erfolgreich geöffnet werden konnte,
@@ -212,7 +239,8 @@ class GoNodeDatabase(bas.GoNode):
                     # Wenn Login-Dialog nicht vom Nutzer abgebrochen wurde,
                     # dann erneuter Versuch mit Login-Eingabe vom Nutzer
                     usr, pwd = dlg.login()
-                    self._tag.open(usr, pwd)
+                    with self._connecting():
+                        self._tag.open(usr, pwd)
             if self._tag.isOpened():
                 self.log.info(
                     "Database '%s' could be opened successfully" , self._tag.Name
@@ -221,14 +249,10 @@ class GoNodeDatabase(bas.GoNode):
             self.log.warning(
                 "Database '%s' could not be opened\n\t%s", self._tag.Name, exc.msg()
             )
-            MsgBox.error(plugin().parent(), 'GeoDin', exc.msg())
+            self._openError(exc.msg())
         except Exception:
             self.log.critical( "Major disaster...", exc_info=True )
-            MsgBox.error(
-                plugin().parent(),
-                'GeoDin',
-                self.translate("Unknown error on open database")
-            )
+            self._openError(self.translate("Unknown error on open database"))
         finally:
             # QTreeWidgetItem aktualisieren
             mode = 1 if self._tag.isOpened() else 0

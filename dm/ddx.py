@@ -449,16 +449,16 @@ class GxDDX:
         19.04.2023 j.ebert
         """
         cls.log.log(gqc._LOG_TRACE,"")
-        assert bool(ddxFile) and isinstance(ddxFile, str), \
-            "Argument 'ddxFile' is not set or is not type 'str'"
+        if not (bool(ddxFile) and isinstance(ddxFile, str)):
+            raise AssertionError("Argument 'ddxFile' is not set or is not type 'str'")
         obj = None
         try:
             with zipfile.ZipFile(ddxFile, "r") as zipFile:
                 with zipFile.open(cls._DumpFile, "r") as dmpFile:
                     jsonObj = json.loads(dmpFile.read())
             jsonDct = jsonObj[cls.__name__]
-            assert isinstance(jsonDct, dict), \
-                "Type 'dict' is expected, but type '%s' was loaded" % type(jsonDct).__name__
+            if not isinstance(jsonDct, dict):
+                raise AssertionError("Type 'dict' is expected, but type '%s' was loaded" % type(jsonDct).__name__)
             obj = cls.from_json(jsonDct, ddxFile)
         except FileNotFoundError:
             # FileNotFoundError: [Errno 2] No such file or directory: '{ddxFile}'
@@ -606,8 +606,8 @@ class GxDDX:
 
         20.01.2023 j.ebert
         """
-        assert isinstance(json_dct, dict), \
-            f"arg 'json_dct': type 'dict' expected, but '{type(json_dct).__name__}' received"
+        if not isinstance(json_dct, dict):
+            raise AssertionError(f"arg 'json_dct': type 'dict' expected, but '{type(json_dct).__name__}' received")
         # Objekt erstellen
         if not ddxFile:
             ddxFile = json_dct['File']
@@ -651,8 +651,8 @@ class GxDDX:
         06.06.2023 j.ebert
         """
         self.log.log(gqc._LOG_TRACE,"")
-        assert bool(filename) and isinstance(filename, str), \
-            f"Argument 'filename': string is required and not emtpy"
+        if not (bool(filename) and isinstance(filename, str)):
+            raise AssertionError(f"Argument 'filename': string is required and not emtpy")
         ddxFile = self.File
         tmpPath = None
         try:
@@ -740,8 +740,8 @@ class GxDDX:
         self.log.log(gqc._LOG_TRACE,"")
 ##        assert bool(path) and isinstance(path, (str, Path)), \
 ##            "Argument 'path' is not set or is not type 'str' or 'Path'"
-        assert  isinstance(path, (str, Path)), \
-            "Argument 'path' is not type 'str' or 'Path'"
+        if not isinstance(path, (str, Path)):
+            raise AssertionError("Argument 'path' is not type 'str' or 'Path'")
         relpath = str(path)
         if (
             bool(path) and
@@ -769,8 +769,8 @@ class GxDDX:
         self.log.log(gqc._LOG_TRACE,"")
 ##        assert bool(path) and isinstance(path, (str, Path)), \
 ##            "Argument 'path' is not set or is not type 'str' or 'Path'"
-        assert isinstance(path, (str, Path)), \
-            "Argument 'path' is not type 'str' or 'Path'"
+        if not isinstance(path, (str, Path)):
+            raise AssertionError("Argument 'path' is not type 'str' or 'Path'")
         abspath = str(path)
         if (
             bool(path) and

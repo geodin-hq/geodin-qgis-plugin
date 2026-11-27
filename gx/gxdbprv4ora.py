@@ -69,7 +69,7 @@ class GxDbProvider4ORA (GxDbProvider):
         self.log.log(gqc._LOG_TRACE, "\n%s\n", tblName)
         with oracledb.connect(**self._CnnTag) as cnn:
             try:
-                cnn.cursor().execute(f"SELECT * FROM {tblName} WHERE 0=9")
+                cnn.cursor().execute(f"SELECT * FROM {tblName} WHERE 0=9")  # nosec B608 - table names from the GeoDin configuration
             except oracledb.DatabaseError as exc:
                 if exc.args[0].code == _ORA_TABLE_NOT_FOUND:
                     # Oracle reports a table without SELECT privilege as missing, too

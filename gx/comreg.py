@@ -25,7 +25,6 @@ import contextlib
 import logging
 import os
 import re
-import subprocess
 import winreg
 from pathlib import Path
 
@@ -118,18 +117,14 @@ class GxComReg:
 
     @classmethod
     def is_running(cls):
-        """True, if a geodin.exe process is running (checked with tasklist)"""
+        """True, if a geodin.exe process is running (all sessions, like tasklist)"""
+        import pywintypes
+        import win32ts
         try:
-            # 10/2026: read bytes and decode here - tasklist writes in the OEM code page
-            #   (e.g. cp850), text=True (UTF-8 in QGIS) raised UnicodeDecodeError in a thread
-            out = subprocess.run(
-                ["tasklist", "/FI", "IMAGENAME eq geodin.exe", "/NH", "/FO", "CSV"],
-                capture_output=True, timeout=10,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
-            ).stdout.decode("latin-1", errors="replace")
-            return "geodin.exe" in out.lower()
-        except Exception:
-            cls.log.debug("tasklist failed", exc_info=True)
+            processes = win32ts.WTSEnumerateProcesses(win32ts.WTS_CURRENT_SERVER_HANDLE, 1, 0)
+            return any(name.lower() == "geodin.exe" for _sid, _pid, name, _user in processes)
+        except pywintypes.error:
+            cls.log.debug("process list failed", exc_info=True)
             # fall back to the GeoDin registry value 'System\\Handle'
             return bool(GxReg.query_Handle())
 

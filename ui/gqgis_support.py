@@ -26,16 +26,18 @@ E-mail:
 """
 import datetime
 import logging
-import os
 import platform
-import subprocess
 import urllib.parse
 import webbrowser
 import zipfile
+
+import win32api
+import win32con
 from pathlib import Path
 
 from qgis.PyQt import (
     QtCore,
+    QtGui,
     QtWidgets
 )
 
@@ -305,13 +307,11 @@ def _isClassicOutlookDefault():
     return _defaultMailProgId().lower().startswith("outlook.url.mailto")
 
 
-def _writeEml(to, cc, subject, body, zipFile):
+def _writeEml(to, subject, body, zipFile):
     """writes an unsent e-mail (*.eml, header X-Unsent: 1) with the ZIP attached"""
     from email.message import EmailMessage
     msg = EmailMessage()
     msg["To"] = to
-    if cc:
-        msg["Cc"] = cc
     msg["Subject"] = subject
     msg["X-Unsent"] = "1"                   # opens as new e-mail (draft), not as received mail
     msg.set_content(body)
@@ -325,7 +325,7 @@ def _writeEml(to, cc, subject, body, zipFile):
     return emlFile
 
 
-def _sendOutlook(parent, to, cc, subject, body, zipFile):
+def _sendOutlook(parent, to, subject, body, zipFile):
     """opens a new e-mail with the ZIP attached in the classic Outlook
 
     Only if the classic Outlook is the default e-mail program: an unsent e-mail (*.eml with
@@ -350,10 +350,9 @@ def _sendOutlook(parent, to, cc, subject, body, zipFile):
         log.info("Classic Outlook not found, mailto is used")
         return 'error'
     try:
-        emlFile = _writeEml(to, cc, subject, body, zipFile)
-        cmd = [exe, "/eml", str(emlFile)]
-        log.debug("Outlook: %s", cmd)
-        subprocess.Popen(cmd, close_fds=True)
+        emlFile = _writeEml(to, subject, body, zipFile)
+        log.debug("Outlook: %s /eml %s", exe, emlFile)
+        win32api.ShellExecute(0, "open", exe, f'/eml "{emlFile}"', None, win32con.SW_SHOWNORMAL)
         return 'ok'
     except Exception:
         log.info("Outlook could not be started, mailto is used", exc_info=True)
@@ -380,8 +379,8 @@ def _copyFileToClipboard(zipFile):
 def _showFile(zipFile):
     """shows the ZIP in the Windows Explorer"""
     try:
-        subprocess.Popen(["explorer", "/select,", str(zipFile)])
-    except Exception:
+        win32api.ShellExecute(0, "open", "explorer.exe", f'/select,"{zipFile}"', None, win32con.SW_SHOWNORMAL)
+    except win32api.error:
         log.debug("", exc_info=True)
 
 
@@ -397,7 +396,7 @@ def _hasMailtoHandler():
         return False
 
 
-def _sendMailto(to, cc, subject, body, zipFile):
+def _sendMailto(to, subject, body, zipFile):
     """opens a mailto e-mail (without attachment) and shows the ZIP in the Windows Explorer
 
     10/2026: the ZIP is also copied to the clipboard -> Ctrl+V in the e-mail attaches it
@@ -410,8 +409,6 @@ def _sendMailto(to, cc, subject, body, zipFile):
     body = body + "\n\n" + hint + "\n" + str(zipFile)
     body = body.replace("\r\n", "\n").replace("\n", "\r\n")   # CRLF for the e-mail programs
     query = {"subject": subject, "body": body}
-    if cc:
-        query["cc"] = cc
     url = "mailto:%s?%s" % (to, urllib.parse.urlencode(query, quote_via=urllib.parse.quote))
     if len(url) > _MAILTO_MAX:
         # mail programs truncate long mailto URLs -> short text, details are in the ZIP
@@ -422,11 +419,9 @@ def _sendMailto(to, cc, subject, body, zipFile):
     #   support address and the ZIP file (copy buttons); returns False in this case
     opened = False
     if _hasMailtoHandler():
-        try:
-            os.startfile(url)
-            opened = True
-        except OSError:
-            log.info("mailto could not be opened", exc_info=True)
+        opened = QtGui.QDesktopServices.openUrl(QtCore.QUrl(url, QtCore.QUrl.ParsingMode.StrictMode))
+        if not opened:
+            log.info("mailto could not be opened: %s", url[:200])
     _showFile(zipFile)
     return opened
 
@@ -445,12 +440,11 @@ def createSupportMail(parent=None):
         with cursor(QtCore.Qt.CursorShape.WaitCursor):
             zipFile, contents, comText = _createZip(app, dlg.options())
             to = gqc.SUPPORT_MAIL_TO
-            cc = gqc.SUPPORT_MAIL_CC if env.isFugroDE() else ""
             subject = "GeoDinQGIS Support (GeoDinQGIS %s)" % app.Version
             body = _mailBody(app, zipFile, contents, comText)
-        state = _sendOutlook(parent, to, cc, subject, body, zipFile)
+        state = _sendOutlook(parent, to, subject, body, zipFile)
         if state != 'ok':
-            if _sendMailto(to, cc, subject, body, zipFile):
+            if _sendMailto(to, subject, body, zipFile):
                 state = 'mailto'
             else:
                 state = 'no e-mail program'

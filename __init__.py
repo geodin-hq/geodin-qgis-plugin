@@ -21,7 +21,7 @@
  ***************************************************************************/
  This script initializes the plugin, making it known to QGIS.
 """
-__version__ = '4.0.2.2648'   # 10/2026 (before: '3.0.22xx'), the plugin version is in metadata.txt
+__version__ = '4.1.0.2648'   # 10/2026 (before: '3.0.22xx'), the plugin version is in metadata.txt
 __license__ = 'GPL-2.0-or-later'
 __maintainer_email__ = 'support@geodin.com'
 __url__ = 'www.geodin.com'

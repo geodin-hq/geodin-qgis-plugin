@@ -11,7 +11,6 @@ CONTEXT_RES = "GQgis_Mnu_Help"
 import datetime
 import logging
 import logging.handlers
-import os
 import webbrowser
 import zipfile
 
@@ -253,16 +252,12 @@ class GQgis_Mnu_Help(QtWidgets.QMenu, GQgis_Bas_Widget):
                 "%s\n%s" % (self.trans("The help file was not found:"), hlpFile)
             )
             return
-        try:
-            os.startfile(str(hlpFile))
-        except Exception:
-            self.log.warning("os.startfile failed: %s", hlpFile, exc_info=True)
-            opened = QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(hlpFile)))
-            if not opened:
-                QtWidgets.QMessageBox.warning(
-                    self._parent, self.trans("Help"),
-                    "%s\n%s" % (self.trans("The help file could not be opened (is a PDF reader installed?):"), hlpFile)
-                )
+        if not QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(hlpFile))):
+            self.log.warning("Help file could not be opened: %s", hlpFile)
+            QtWidgets.QMessageBox.warning(
+                self._parent, self.trans("Help"),
+                "%s\n%s" % (self.trans("The help file could not be opened (is a PDF reader installed?):"), hlpFile)
+            )
         return
 
     def execActionHelp_v01(self):
@@ -302,7 +297,6 @@ class GQgis_Mnu_Help(QtWidgets.QMenu, GQgis_Bas_Widget):
 ##        self.log.log(gqc._LOG_TRACE,"")
 ##        url_mailto = "mailto:%s?%ssubject=%s&body=%s" % (
 ##            gqc.SUPPORT_MAIL_TO,
-##            f"cc={gqc.SUPPORT_MAIL_CC}&" if  env.isFugroDE() else "",
 ##            subject.replace (' ', '%20'),
 ##            body.replace (' ', '%20')
 ##        )

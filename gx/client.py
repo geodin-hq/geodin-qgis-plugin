@@ -9,7 +9,6 @@ Classes:
 import json
 import logging
 import os
-import random
 import re
 
 from .geodin import *

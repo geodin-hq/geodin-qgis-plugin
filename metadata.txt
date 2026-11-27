@@ -7,11 +7,17 @@ about=GeoDin is an industry standard software for the collection, interpretation
     Requirements: Windows with GeoDin installed, and the Python packages pywin32 and, for the database connections, pyodbc (MS Access, MS SQL Server), psycopg2 (PostgreSQL) or oracledb 2.0+ (Oracle). If QGIS reports a missing module, open the OSGeo4W Shell as administrator, run "python -m pip install pywin32 pyodbc psycopg2-binary oracledb" and restart QGIS.
 category=Database
 # 10/2026: version 4 (scheme main.minor.bugfix.yyww) - QGIS 4 / Qt6 compatibility and the changes in changelog.txt (before: 3.0.2417.1)
-version=4.0.2.2648
+version=4.1.0.2648
 author=Fugro Germany Land GmbH
 email=support@geodin.com
 tags=geodin,geology,borehole,geotechnics,groundwater,database
-changelog=4.0.2.2648
+changelog=4.1.0.2648
+    - Security scan of plugins.qgis.org passes without a Bandit configuration
+    - Plugin settings in a JSON file (the language setting is reset once)
+    - Help, e-mail and Windows Explorer are opened through the Windows shell
+    - Opening a database shows a progress dialog and a clearer error message
+    - Support e-mail without CC
+    4.0.2.2648
     - Bandit configuration for the security scan of plugins.qgis.org
     - No silently ignored errors: expected cases are checked, others are logged
     4.0.1.2648

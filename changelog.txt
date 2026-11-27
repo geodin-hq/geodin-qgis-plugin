@@ -1,3 +1,14 @@
+# Version __4.1.0.2648__ (11/2026)
+
+* Changes
+  * security scan of plugins.qgis.org passes without a Bandit configuration (.bandit removed)
+  * argument checks raise AssertionError explicitly (also with python -O)
+  * plugin settings in <LocalAppData>\config.json instead of a shelve file; the language setting is reset once
+  * GeoDin process check without tasklist; help, e-mail and Windows Explorer opened through the Windows shell
+  * passwords are only masked by the central log formatter
+  * opening a database shows 'Connecting to database ...'; errors name the database and point to the connection settings in GeoDin
+  * support e-mail without CC
+
 # Version __4.0.2.2648__ (11/2026)
 
 * Changes

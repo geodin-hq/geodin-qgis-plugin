@@ -10,7 +10,6 @@
 #-------------------------------------------------------------------------------
 import logging
 import json
-import random
 import re
 
 import GeODinQGIS.gqgis_base as gqb
@@ -42,11 +41,6 @@ class GxDbProvider:
     @property
     def DriverID(self):
         return self._Parent.DriverID
-
-    def hiddenPwd(self):
-        if not hasattr(self, '_hiddenPwd'):
-            self._hiddenPwd = "".ljust(random.randint(8,17), '*')
-        return self._hiddenPwd
 
     def open(
         self,

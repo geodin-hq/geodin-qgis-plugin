@@ -52,27 +52,11 @@ class GxDbProvider4PG (GxDbProvider):
                 if self._Parent._CnnPrps.get('password',''):
                     cnnPrms += ["password=%s" % self._Parent._CnnPrps['password']]
             cnnStr = " ".join(cnnPrms)
-            # Connection-Prps/Prms/Str loggen, aber mit "maskierten" Passwort(!!!)
             self.log.debug(
                 "cnnPrps = %s\n\tcnnPrms = %s\n\tcnnStr = \"%s\"",
-                re.sub(
-                    "\"password\": \"\\S+\"",
-                    "\"password\": \"%s\"" % self.hiddenPwd(),
-                    json.dumps(self._Parent._CnnPrps, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                ),
-                re.sub(
-                    "\"password=\\S+\"",
-                    "\"password=%s\"" % self.hiddenPwd(),
-                    json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
-                    re.IGNORECASE
-                ),
-                re.sub(
-                    "password=\\S+",
-                    "password=%s" % self.hiddenPwd(),
-                    cnnStr,
-                    re.IGNORECASE
-                )
+                json.dumps(self._Parent._CnnPrps, indent=4).replace("\n", "\n\t"),
+                json.dumps(cnnPrms, indent=4).replace("\n", "\n\t"),
+                cnnStr
             )
             # psycopg2-Connection testen
             self.log.debug(cnnStr)
@@ -103,7 +87,7 @@ class GxDbProvider4PG (GxDbProvider):
             crs = cnn.cursor()
             res = False
             try:
-                crs.execute(f"SELECT * FROM {tblName} WHERE 0=9")
+                crs.execute(f"SELECT * FROM {tblName} WHERE 0=9")  # nosec B608 - table names from the GeoDin configuration
                 res = True
             except psycopg2.errors.UndefinedTable:
                 pass

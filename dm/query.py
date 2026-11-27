@@ -452,10 +452,10 @@ class GoQuery(GoBaseClass):
 
         24.04.2024 j.ebert
         """
-        assert type(other) is type(self), \
-            "Type '%s' is expected, but type '%s' was given" % (
+        if type(other) is not type(self):
+            raise AssertionError("Type '%s' is expected, but type '%s' was given" % (
                 type(self).__name__, type(other).__name__
-            )
+            ))
         if (id(other) != id(self)) and (self == other):
             # Differenzierung GxTyp* und GXQry*
             # (siehe auch GoQuery.__eq__() und GoQuery.__members())
@@ -506,8 +506,8 @@ class GoQuery(GoBaseClass):
         json_dct,               # JSON-Objekt (dict)
         dbRef=None              # Verweis auf GxDatabase-Objekt
         ):
-        assert isinstance(json_dct, dict), \
-            f"arg 'json_dct': type 'dict' expected, but '{type(json_dct).__name__}' received"
+        if not isinstance(json_dct, dict):
+            raise AssertionError(f"arg 'json_dct': type 'dict' expected, but '{type(json_dct).__name__}' received")
         dmpDict = json_dct
         # Objekt erstellen
         obj = cls(dbRef, dmpDict.get('PrjID',"PrjID°"), dmpDict.get('Name',""))

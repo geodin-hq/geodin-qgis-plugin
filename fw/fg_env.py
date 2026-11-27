@@ -5,17 +5,17 @@ Globals:
     LOCALAPPDATA        - local data folder (type: Path)
 
 Classes:
-    Config              - Config Class to manage configuration (Singleton!)
+    Config              - Config Class to manage configuration (Singleton!), JSON file
     Env                 - Env Class to manage environment (Singleton!)
     EnvDict             - customiced Python dict class
 
 
 08.09.2022 J.Ebert
 """
+import json
 import logging
 import os
 from pathlib import Path
-import shelve
 import tempfile
 
 # global settings...
@@ -227,32 +227,42 @@ class Config(object):
     def __init__(self):
         self.log = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.log.debug("self.__repr__()")
-        self.__ConfigFile = LOCALAPPDATA / 'config'
-        """configuartion file"""
+        self.__ConfigFile = LOCALAPPDATA / 'config.json'
+        """configuration file (11/2026: JSON, before shelve file 'config')"""
+
+    def _load(self):
+        try:
+            return json.loads(self.__ConfigFile.read_text(encoding='utf-8'))
+        except FileNotFoundError:
+            return {}
+        except ValueError:
+            self.log.warning("Invalid configuration file '%s' ignored", self.__ConfigFile)
+            return {}
+
+    def _save(self, data):
+        self.__ConfigFile.write_text(json.dumps(data, indent=4), encoding='utf-8')
 
     def __getitem__(self, key):
-        with shelve.open(str(self.__ConfigFile)) as sFile:  # nosec B301 - own per-user settings file
-            value = sFile[key]
-        return value
+        return self._load()[key]
 
     def __setitem__(self, key, value):
-        with shelve.open(str(self.__ConfigFile)) as sFile:  # nosec B301 - own per-user settings file
-            sFile[key] = value
-        return
+        data = self._load()
+        data[key] = value
+        self._save(data)
 
     def __delitem__(self, key):
-        with shelve.open(str(self.__ConfigFile)) as sFile:  # nosec B301 - own per-user settings file
-            value = sFile.pop(key)
+        data = self._load()
+        value = data.pop(key)
+        self._save(data)
         return value
 
     def get(self, key, default=None):
-        with shelve.open(str(self.__ConfigFile)) as sFile:  # nosec B301 - own per-user settings file
-            value = sFile.get(key, default)
-        return value
+        return self._load().get(key, default)
 
     def pop(self, key, default=None):
-        with shelve.open(str(self.__ConfigFile)) as sFile:  # nosec B301 - own per-user settings file
-            value = sFile.pop(key, default)
+        data = self._load()
+        value = data.pop(key, default)
+        self._save(data)
         return value
 
     @property

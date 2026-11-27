@@ -64,6 +64,10 @@
         "Unknown error on close database": "Unbekannter Fehler beim Schließen der Datenbank",
         "Unknown error on open database": "Unbekannter Fehler beim Öffnen der Datenbank",
         "Unknown error on remove database": "Unbekannter Fehler beim Entfernen der Datenbank",
+        "Open database": "Datenbank öffnen",
+        "Connecting to database \"%s\" ...": "Verbindung zur Datenbank „%s“ wird hergestellt …",
+        "The database \"%s\" could not be opened:": "Die Datenbank „%s“ konnte nicht geöffnet werden:",
+        "Please check the connection settings in GeoDin.": "Bitte prüfe die Verbindungseinstellungen in GeoDin.",
         "key": "val"
     },
     # GeODin Schnittstelle (Python Modul gx)

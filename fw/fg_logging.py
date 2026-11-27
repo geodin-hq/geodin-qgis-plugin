@@ -342,7 +342,8 @@ class LogFormatterTrace(logging.Formatter):
 def listLogFiles(
     prefix=""
 ):
-    assert isinstance(prefix, str)
+    if not isinstance(prefix, str):
+        raise AssertionError("Argument 'prefix' is not type 'str'")
     logfiles = []
     for name in [
         name for name in logging.root.manager.loggerDict if name.startswith(prefix)
@@ -356,15 +357,18 @@ def listLogFiles(
 def listLogFolders(
     prefix=""
 ):
-    assert isinstance(prefix, str)
+    if not isinstance(prefix, str):
+        raise AssertionError("Argument 'prefix' is not type 'str'")
     return list(set([Path(name).parent for name in listLogFiles(prefix)]))
 
 def zipLogFiles(
     prefix="",
     zipName=""
 ):
-    assert isinstance(prefix, str)
-    assert isinstance(zipName, (str, Path)) and bool(zipName)
+    if not isinstance(prefix, str):
+        raise AssertionError("Argument 'prefix' is not type 'str'")
+    if not (isinstance(zipName, (str, Path)) and bool(zipName)):
+        raise AssertionError("Argument 'zipName' is not set or is not type 'str' or 'Path'")
 ##    zipName = "GeODinQGIS_logs_%s.zip" % datetime.datetime.now().strftime("%y%m%d%H%M%S")
 ##    zipName = Path(r"C:\Data\GeODinQGIS\temp") / zipName
     with zipfile.ZipFile(zipName, "w") as zipFile:

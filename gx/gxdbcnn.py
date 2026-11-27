@@ -156,7 +156,7 @@ class GxDbCommandText:
         return f"{self.Tbl.Prefix}_{shortTblName}"
 
     def existsTable(self, shortTblName):
-        dbSQL = f"SELECT * FROM {self.Tbl.SchemaPrefix}_{shortTblName} WHERE 0=9"
+        dbSQL = f"SELECT * FROM {self.Tbl.SchemaPrefix}_{shortTblName} WHERE 0=9"  # nosec B608 - table names from the GeoDin configuration
         return dbSQL
 
     def load_ExistingINVTYPES(self, prjID=''):
@@ -167,18 +167,18 @@ UNION
 SELECT INVID FROM {self.Tbl.LOC_LOCREG} {where_clause}
 UNION
 SELECT INVID FROM {self.Tbl.LOC_PRBREG} {where_clause}
-        """
+        """  # nosec B608 - table names from the GeoDin configuration, project ID from the database
         return dbSQL
 
     def load_ExistingLOCTYPES(self, prjID=''):
         where_clause = "" if not prjID else f" WHERE PRJ_ID = '{prjID}'"
-        dbSQL = f"""SELECT DISTINCT LOCTYPE FROM {self.Tbl.LOC_LOCREG} {where_clause}"""
+        dbSQL = f"""SELECT DISTINCT LOCTYPE FROM {self.Tbl.LOC_LOCREG} {where_clause}"""  # nosec B608 - table names from the GeoDin configuration, project ID from the database
         return dbSQL
 
     def load_LOCTYPECounts(self, prjID=''):
         # 10/2026: number of objects per object type (shown in brackets in the GeoDinQGIS Explorer)
         where_clause = "" if not prjID else f" WHERE PRJ_ID = '{prjID}'"
-        dbSQL = f"""SELECT LOCTYPE, COUNT(*) FROM {self.Tbl.LOC_LOCREG} {where_clause} GROUP BY LOCTYPE"""
+        dbSQL = f"""SELECT LOCTYPE, COUNT(*) FROM {self.Tbl.LOC_LOCREG} {where_clause} GROUP BY LOCTYPE"""  # nosec B608 - table names from the GeoDin configuration, project ID from the database
         return dbSQL
 
     def load_LOCPRMGR(self, name=''):
@@ -186,7 +186,7 @@ SELECT INVID FROM {self.Tbl.LOC_PRBREG} {where_clause}
             name = self.Tbl.LOCPRMGR
         dbSQL = f"""
 SELECT PRJ_ID, PRJ_NAME, PRJ_ALIAS, PRJ_TYPE, PRJ_OPT, PRJ_USER, PRJ_DATE, PRJ_PATH, GEODINGUID
-FROM {name}"""
+FROM {name}"""  # nosec B608 - table names from the GeoDin configuration
         return dbSQL
 
     def load_PRJDEFS(self, owner=''):
@@ -211,7 +211,7 @@ SELECT
     PRJ_ID, OBJ_ID, OBJ_DESC, OBJ_NAME, OBJ_OPT
 FROM {self.Tbl.SYS_PRJDEFS}
 WHERE (OBJ_DESC = 'MESQUERY') OR (OBJ_DESC = 'LOCQUERY')
-        """
+        """  # nosec B608 - table names from the GeoDin configuration
         # 08/2023 j.ebert, SQL-Statement inkl. Anmerkung aus GeODinXtn für ArcMap 10 übernommen
         #                  Stand vor 2017(!) <- GeODinXtn für ArcMap 10 wurde 12/2017 eingefroren
         #   Achtung!
@@ -228,11 +228,11 @@ FROM {self.Tbl.SYS_PRJDEFS} PD INNER JOIN (
     WHERE (OBJ_DESC = 'MESQUERY') OR (OBJ_DESC = 'LOCQUERY')
     GROUP BY P2.PRJ_ID, P2.OBJ_NAME
 ) Q ON (PD.PRJ_ID = Q.PRJ_ID) AND (PD.OBJ_ID = Q.OBJ_ID)
-        """
+        """  # nosec B608 - table names from the GeoDin configuration
         return dbSQL
 
     def load_LOCTYPES(self):
-        dbSQL = f"SELECT * FROM {self.Tbl.SYS_LOCTYPES} WHERE GEN_OPT <> 129"
+        dbSQL = f"SELECT * FROM {self.Tbl.SYS_LOCTYPES} WHERE GEN_OPT <> 129"  # nosec B608 - table names from the GeoDin configuration
         return dbSQL
 
     def load_LOCTABTY(self):
@@ -242,18 +242,18 @@ SELECT
     TY.TAB_DESC AS TAB_DESC, TY.TAB_NAME AS TAB_NAME, TY.TAB_TYPE AS TAB_TYPE, TY.TAB_OPT AS TAB_OPT, TY.TAB_TRC AS TAB_TRC, TY.INV_TYPE AS INV_TYPE
 FROM {self.Tbl.SYS_LOCTABS} LOCTABS
 INNER JOIN {self.Tbl.SYS_LOCTABTY} TY ON LOCTABS.TAB_DESC = TY.TAB_DESC
-        """
+        """  # nosec B608 - table names from the GeoDin configuration
         return dbSQL
 
     def load_INVTYPES(self):
-        dbSQL = f"SELECT * FROM {self.Tbl.SYS_INVTYPES}"
+        dbSQL = f"SELECT * FROM {self.Tbl.SYS_INVTYPES}"  # nosec B608 - table names from the GeoDin configuration
         return dbSQL
 
     def load_ADCALIAS(self):
         dbSQL = f"""
 SELECT ALIAS_NAME, ALIAS_TEXT
 FROM {self.Tbl.ADC_ADCDALIAS}
-        """
+        """  # nosec B608 - table names from the GeoDin configuration
         return dbSQL
 
     def load_ADCDATA(self):
@@ -270,7 +270,7 @@ SELECT
 FROM {self.Tbl.ADC_ADCDATA} DATA
 LEFT JOIN {self.Tbl.ADC_ADCLINK} LINK ON DATA.ADC_ID = LINK.ADC_ID
 WHERE (DATA.ADC_FILE IS NOT NULL)
-        """
+        """  # nosec B608 - table names from the GeoDin configuration
         return dbSQL
 
     def select_TypLOC(self, prjID, desc, tblName):

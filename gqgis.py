@@ -189,8 +189,8 @@ class GQgis:
         17.05.2023 j.ebert
         """
         self.log.log(gqc._LOG_TRACE,"")
-        assert  isinstance(path, (str, Path)), \
-            "Argument 'path' is not type 'str' or 'Path'"
+        if not isinstance(path, (str, Path)):
+            raise AssertionError("Argument 'path' is not type 'str' or 'Path'")
         relpath = str(path)
         if (
             bool(path) and
@@ -215,8 +215,8 @@ class GQgis:
         17.05.2023 j.ebert
         """
         self.log.log(gqc._LOG_TRACE,"")
-        assert isinstance(path, (str, Path)), \
-            "Argument 'path' is not type 'str' or 'Path'"
+        if not isinstance(path, (str, Path)):
+            raise AssertionError("Argument 'path' is not type 'str' or 'Path'")
         abspath = str(path)
         if (
             bool(path) and

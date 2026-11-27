@@ -364,8 +364,8 @@ class GxCOM:
         # Wenn noch keine GeODin COM Connection existiert, also
         # wenn _gCOM nicht gesetzt ist,
         # dann Abbruch der Methode mit AssertionError
-        assert self._gCOM, \
-            "GeoDin COM connection is not opened/initialised"
+        if not self._gCOM:
+            raise AssertionError("GeoDin COM connection is not opened/initialised")
         # GeODin COM Connection prüfen
         if (
             (self._gCOM_RegHandle != self.__REGHANDLE_CLOSED) and
@@ -425,8 +425,8 @@ class GxCOM:
         self.log.log(gqc._LOG_TRACE, "")
         # Wenn das Attribut _AppFolder nicht gesetzt ist,
         # dann Abbruch der Methode mit AssertionError
-        assert self._AppFolder, \
-            "Attribute 'AppFolder' not set"
+        if not self._AppFolder:
+            raise AssertionError("Attribute 'AppFolder' not set")
         # GeODin COM Connection (inkl. GeODin Konfiguration) prüfen...
         appFolder = ""
         try:
@@ -547,7 +547,8 @@ class GxCOM:
 
         10.03.2023 j.ebert
         """
-        assert self._gCOM, f"{self.__gCOM_Alias} not activated"
+        if not self._gCOM:
+            raise AssertionError(f"{self.__gCOM_Alias} not activated")
         res = self._gCOM.SysInfo('GeODinINIFileName')
         self._gCOM_ExcetpionVal = self._gCOM.ExceptionValue
         self._gCOM_ExcetpionMsg = self._gCOM.ExceptionMsg
@@ -619,7 +620,8 @@ class GxCOM:
         """
         # 10/2026: no COM call while a modal GeoDin dialog is open
         self.assertNotBusy()
-        assert self._gCOM, f"{self.__gCOM_Alias} not activated"
+        if not self._gCOM:
+            raise AssertionError(f"{self.__gCOM_Alias} not activated")
         self.log.log(
             gqc._LOG_GxCOM,
             "ExecuteMethodParams (%d): \n\t%s", methodID, str(prms).replace("\n", "\n\t")
@@ -652,9 +654,10 @@ class GxCOM:
         """
         # 10/2026: no COM call while a modal GeoDin dialog is open
         self.assertNotBusy()
-        assert self._gCOM, f"{self.__gCOM_Alias} not activated"
-        assert isinstance(filename, str) and bool(filename), \
-            "Argument 'filename' not set"
+        if not self._gCOM:
+            raise AssertionError(f"{self.__gCOM_Alias} not activated")
+        if not (isinstance(filename, str) and bool(filename)):
+            raise AssertionError("Argument 'filename' not set")
         prms = f"""
 [Params]
 Method=FeatureCollection
@@ -701,7 +704,8 @@ Filename={filename}
 
         10.03.2023 j.ebert
         """
-        assert self._gCOM, f"{self.__gCOM_Alias} not activated"
+        if not self._gCOM:
+            raise AssertionError(f"{self.__gCOM_Alias} not activated")
         res = self._gCOM.SysInfo('ApplicationFolder')
         self._gCOM_ExcetpionVal = self._gCOM.ExceptionValue
         self._gCOM_ExcetpionMsg = self._gCOM.ExceptionMsg
@@ -714,7 +718,8 @@ Filename={filename}
         return self._gCOM_ExcetpionVal, res
 
     def _gCOM_LicenceInfo(self):
-        assert self._gCOM, f"{self.__gCOM_Alias} not activated"
+        if not self._gCOM:
+            raise AssertionError(f"{self.__gCOM_Alias} not activated")
         res = self._gCOM.LicenceInfo
         self._gCOM_ExcetpionVal = self._gCOM.ExceptionValue
         self._gCOM_ExcetpionMsg = self._gCOM.ExceptionMsg
@@ -729,7 +734,8 @@ Filename={filename}
 
         10.03.2023 j.ebert
         """
-        assert self._gCOM, f"{self.__gCOM_Alias} not activated"
+        if not self._gCOM:
+            raise AssertionError(f"{self.__gCOM_Alias} not activated")
         res = self._gCOM.SysInfo('ProgramDataFolder')
         self._gCOM_ExcetpionVal = self._gCOM.ExceptionValue
         self._gCOM_ExcetpionMsg = self._gCOM.ExceptionMsg
